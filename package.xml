@@ -13,4 +13,6 @@
 
     <depend>costmap_2d</depend>
     <depend>roscpp</depend>
+
+    <depend>base_local_planner</depend>
 </package>

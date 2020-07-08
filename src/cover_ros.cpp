@@ -13,20 +13,18 @@
 namespace cover {
 
 footprint
-make_footprint(costmap_2d::Costmap2DROS& _map) {
-  const auto cm_footprint = _map.getRobotFootprint();
-
+make_footprint(const std::vector<geometry_msgs::Point>& _msg) {
   // transform to polygon
-  polygon pl(2, cm_footprint.size());
-  for (size_t ii = 0; ii != cm_footprint.size(); ++ii)
-    pl.col(ii) << cm_footprint[ii].x, cm_footprint[ii].y;
+  polygon pl(2, _msg.size());
+  for (size_t ii = 0; ii != _msg.size(); ++ii)
+    pl.col(ii) << _msg[ii].x, _msg[ii].y;
 
   // get the robot inflation radius
   double min, max;
-  costmap_2d::calculateMinAndMaxDistances(cm_footprint, min, max);
+  costmap_2d::calculateMinAndMaxDistances(_msg, min, max);
 
   // will throw if the footprint is ill-formed
-  return split(pl, min);
+  return split(pl, min - 1e-3);
 }
 
 using cm_polygon = std::vector<costmap_2d::MapLocation>;
@@ -51,7 +49,7 @@ dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
   cm_polygon sparse(_p.cols());
   for (int cc = 0; cc != _p.cols(); ++cc) {
     if (!_map.worldToMap(_p(0, cc), _p(1, cc), sparse[cc].x, sparse[cc].y))
-      throw std::runtime_error("ring outside of the map");
+      throw std::out_of_range("ring outside of the map");
   }
 
   // make it unique, since our internal resolution might be more granular
@@ -60,7 +58,7 @@ dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
 
   // get the ray-traced ('dense') outline
   cm_polygon dense;
-  _map.polygonOutlineCells(dense, sparse);
+  _map.polygonOutlineCells(sparse, dense);
 
   return dense;
 }
@@ -86,7 +84,7 @@ check_ring(costmap_2d::Costmap2D& _map, const polygon& _ring,
   const polygon sparse = to_affine(_pose) * _ring;
   const auto dense = dense_outline(_map, sparse);
 
-  cost_below cb(_map, costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+  cost_below cb(_map, costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
   return std::all_of(dense.begin(), dense.end(), cb);
 }
 

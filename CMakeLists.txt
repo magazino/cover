@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.1)
 project(cover)
 
-set(CATKIN_REQUIRED_PACKAGE costmap_2d roscpp)
+set(CATKIN_REQUIRED_PACKAGE base_local_planner costmap_2d roscpp)
 
 find_package(catkin REQUIRED COMPONENTS ${CATKIN_REQUIRED_PACKAGE})
 find_package(Eigen3 REQUIRED)
@@ -48,9 +48,9 @@ install(FILES src/cover.hpp src/cover_ros.hpp
 #############
 
 if(CATKIN_ENABLE_TESTING)
-
   catkin_add_gtest(${PROJECT_NAME}_test
-    test/cover.cpp)
+    test/cover.cpp
+    test/cover_ros.cpp)
 
   target_include_directories(${PROJECT_NAME}_test PUBLIC src)
   if (TARGET ${PROJECT_NAME}_test)

@@ -1,9 +1,10 @@
 #pragma once
 
 #include <Eigen/Core>
-#include <Eigen/StdVector>
+// #include <Eigen/StdVector>
 
 #include <vector>
+// #include <list>
 
 namespace cover {
 
@@ -14,8 +15,9 @@ namespace cover {
 // below our interface format
 using point = Eigen::Vector2d;
 using polygon = Eigen::Matrix<double, 2ul, Eigen::Dynamic>;
+using polygon_vec = std::vector<polygon>;
 
-EIGEN_STL_VECTOR(polygon);
+// EIGEN_STL_VECTOR(polygon);
 
 enum class check_type { DENSE, RING, ALL };
 

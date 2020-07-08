@@ -11,7 +11,7 @@ namespace cover {
 using se2 = Eigen::Vector3d;
 
 footprint
-make_footprint(costmap_2d::Costmap2DROS& _map);
+make_footprint(const std::vector<geometry_msgs::Point>& _msg);
 
 bool
 check_pose_throw(costmap_2d::Costmap2D& _map, const footprint& _footprint,
