@@ -38,13 +38,6 @@ namespace cover {
 namespace gg = geos::geom;
 namespace go = geos::operation;
 
-inline double
-min_coeff(const polygon& _p) noexcept {
-  if (_p.cols() == 0)
-    return 0;
-  return _p.array().abs().minCoeff();
-}
-
 polygon
 to_eigen(const gg::CoordinateSequence& _s) noexcept {
   polygon out(2, _s.size());
@@ -64,6 +57,9 @@ constexpr double tolerance = 1e-3;
 
 footprint
 to_geos(const polygon& _p, double _d) {
+  if(_d <= 0)
+    throw std::invalid_argument("radius must be positive");
+
   COVER_INFO("setting up geometry...");
 
   // convert to CoordinateSequence
@@ -90,16 +86,6 @@ to_geos(const polygon& _p, double _d) {
   if (!poly->isValid())
     throw std::runtime_error("failed to construct a valid polygon");
 
-  // check the distance
-  _d -= tolerance;
-  const auto max_d = min_coeff(_p);
-  if (max_d < _d - tolerance)
-    throw std::runtime_error("provided radius too big");
-
-  // avoid numerical issues
-  if (max_d == _d)
-    _d -= tolerance;
-
   COVER_INFO("erode/inflating with the radius " << _d);
 
   // erode the geometry
@@ -120,7 +106,7 @@ to_geos(const polygon& _p, double _d) {
   // convert back to output format
   footprint out;
   out.ring = to_eigen(*eroded->getCoordinates());
-  out.dense.resize(polygons.size());
+  out.dense.reserve(polygons.size());
   for (const auto& polygon_ptr : polygons) {
     out.dense.emplace_back(to_eigen(*polygon_ptr));
 
