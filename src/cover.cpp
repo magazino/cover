@@ -7,7 +7,6 @@
 #include <geos/geom/LinearRing.h>
 #include <geos/geom/Polygon.h>
 #include <geos/geom/util/PolygonExtracter.h>
-#include <geos/operation/union/CascadedPolygonUnion.h>
 
 #include <ros/console.h>
 
@@ -36,7 +35,6 @@ using GeometryVecPtr = std::unique_ptr<Geometry::NonConstVect>;
 namespace cover {
 
 namespace gg = geos::geom;
-namespace go = geos::operation;
 
 polygon
 to_eigen(const gg::CoordinateSequence& _s) noexcept {
@@ -49,7 +47,7 @@ to_eigen(const gg::CoordinateSequence& _s) noexcept {
 
 inline polygon
 to_eigen(const gg::Polygon& _p) noexcept {
-  return to_eigen( *_p.getExteriorRing()->getCoordinates());
+  return to_eigen(*_p.getExteriorRing()->getCoordinates());
 }
 
 // allow millimeter tolerance
@@ -57,14 +55,14 @@ constexpr double tolerance = 1e-3;
 
 footprint
 to_geos(const polygon& _p, double _d) {
-  if(_d <= 0)
+  if (_d <= 0)
     throw std::invalid_argument("radius must be positive");
 
   COVER_INFO("setting up geometry...");
 
   // convert to CoordinateSequence
   gg::CoordinateSequencePtr sequence(new gg::CoordinateArraySequence());
-  for (int cc = _p.cols() - 1; cc >= 0; --cc)
+  for (int cc = 0; cc != _p.cols(); ++cc)
     sequence->add(gg::Coordinate{_p(0, cc), _p(1, cc)});
 
   // check if we have to close the polygon
@@ -89,9 +87,9 @@ to_geos(const polygon& _p, double _d) {
   COVER_INFO("erode/inflating with the radius " << _d);
 
   // erode the geometry
-  gg::GeometryPtr eroded{poly->buffer(-_d)};
+  gg::GeometryPtr eroded{poly->buffer(-_d, 16)};
   if (eroded->isEmpty()) {
-    COVER_INFO("distance " << _d << " too big");
+    COVER_WARN("distance " << _d << " too big");
   }
 
   // inflate it back and get the diff

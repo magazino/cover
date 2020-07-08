@@ -115,36 +115,7 @@ TEST(split, circle) {
   EXPECT_TRUE(res.dense.empty());
 }
 
-TEST(split, pill) {
-  // the pill is a mixture of a circle and a rectangle
-  // we first define a unit circle
-  polygon pill(2, 16);
-  for (int cc = 0; cc != pill.cols(); ++cc) {
-    const auto angle = M_PI * 2 * cc / pill.cols();
-    pill.col(cc) << std::cos(angle), std::sin(angle);
-  }
-
-  // now move the first half up, and the second half down;
-  polygon offset(2, 8);
-  offset.row(0).fill(0);
-  offset.row(1).fill(1);
-
-  pill.block(0, 0, 2, 8) += offset;
-  pill.block(0, 8, 2, 8) -= offset;
-
-  std::cout << pill << std::endl;
-  const auto res = split(pill, 1 - 1e-1);
-
-  // but all points should be very close to the middle
-  // const auto mean = res.ring.rowwise().mean();
-  // EXPECT_NEAR(mean.x(), 0, 1e-2);
-  // EXPECT_NEAR(mean.y(), 0, 1e-2);
-
-  // // the pill should be covered by our approximation
-  // EXPECT_TRUE(res.dense.empty());
-}
-
-TEST(split, reallife) {
+TEST(split, real_life_toru) {
   // take a real-life toru footprint
   polygon footprint(2, 32);
   int cc = 0;
@@ -158,19 +129,19 @@ TEST(split, reallife) {
   footprint.col(cc++) << 0.66835, 0.29757;
   footprint.col(cc++) << 0.59975, 0.32630;
   footprint.col(cc++) << 0.51924, 0.34051;
-  footprint.col(cc++) << 0.20630, 0.34051;
-  footprint.col(cc++) << 0.29326, 0.32391;
-  footprint.col(cc++) << 0.38673, 0.27609;
-  footprint.col(cc++) << 0.45629, 0.19506;
-  footprint.col(cc++) << 0.51063, 0.10001;
-  footprint.col(cc++) << 0.52585, 0.03203;
-  footprint.col(cc++) << 0.52756, 0.00000;
-  footprint.col(cc++) << 0.52585, -0.03203;
-  footprint.col(cc++) << 0.51063, -0.10001;
-  footprint.col(cc++) << 0.45629, -0.19506;
-  footprint.col(cc++) << 0.38673, -0.27609;
-  footprint.col(cc++) << 0.29326, -0.32391;
-  footprint.col(cc++) << 0.20630, -0.34051;
+  footprint.col(cc++) << -0.20630, 0.34051;
+  footprint.col(cc++) << -0.29326, 0.32391;
+  footprint.col(cc++) << -0.38673, 0.27609;
+  footprint.col(cc++) << -0.45629, 0.19506;
+  footprint.col(cc++) << -0.51063, 0.10001;
+  footprint.col(cc++) << -0.52585, 0.03203;
+  footprint.col(cc++) << -0.52756, 0.00000;
+  footprint.col(cc++) << -0.52585, -0.03203;
+  footprint.col(cc++) << -0.51063, -0.10001;
+  footprint.col(cc++) << -0.45629, -0.19506;
+  footprint.col(cc++) << -0.38673, -0.27609;
+  footprint.col(cc++) << -0.29326, -0.32391;
+  footprint.col(cc++) << -0.20630, -0.34051;
   footprint.col(cc++) << 0.51924, -0.34051;
   footprint.col(cc++) << 0.59975, -0.32630;
   footprint.col(cc++) << 0.66835, -0.29757;
@@ -181,7 +152,8 @@ TEST(split, reallife) {
   footprint.col(cc++) << 0.84082, -0.03039;
   footprint.col(cc++) << 0.84218, -0.00597;
 
-  std::cout << footprint.transpose() << std::endl;
-
   const auto res = split(footprint, 0.34);
+
+  // the inner part must be valid
+  EXPECT_NE(res.ring.size(), 0);
 }
