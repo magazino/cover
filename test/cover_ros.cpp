@@ -60,3 +60,51 @@ TEST_P(inside_map_fixture, generic) {
   // verify that we reject poses out of range
   EXPECT_NO_THROW(check_pose_throw(map, fp, pose, check_type::ALL));
 }
+
+TEST(outline, triangle) {
+  costmap_2d::Costmap2D map(30, 30, 0.1, -1.5, -1.5);
+  std::vector<geometry_msgs::Point> msg(4);
+  msg[0].x = 1;
+  msg[0].y = 1;
+  msg[1].x = -1;
+  msg[1].y = 1;
+  msg[2].x = -1;
+  msg[2].y = -1;
+  msg[3].x = 1;
+  msg[3].y = -1;
+  Eigen::Vector3d center{0, 0, 1};
+  map.mapToWorld(15, 15, center.x(), center.y());
+  // paint the outline into the map
+  base_local_planner::FootprintHelper fh;
+  const auto cells = fh.getFootprintCells(center.cast<float>(), msg, map, true);
+
+  for (const auto& c : cells) {
+    map.setCost(c.x, c.y,  1);
+  }
+
+  const auto fp = make_footprint(msg);
+  for (const auto& d : fp.dense) {
+    std::cout << d.transpose() << std::endl << std::endl;
+    // convert to msg
+    std::vector<geometry_msgs::Point> dm(d.cols());
+    for (int cc = 0; cc != d.cols(); ++cc) {
+      dm[cc].x = d(0, cc);
+      dm[cc].y = d(1, cc);
+    }
+    const auto dc = fh.getFootprintCells(center.cast<float>(), dm, map, true);
+
+    for (const auto& c : dc) {
+      map.setCost(c.x, c.y, map.getCost(c.x, c.y) + 2);
+      // map.setCost(c.x, c.y, 3);
+    }
+    // break;
+  }
+
+  // print the map
+  for (int ii = 0; ii != 30; ++ii) {
+    for (int jj = 0; jj != 30; ++jj) {
+      std::cout << static_cast<int>(map.getCost(ii, jj)) << ",";
+    }
+    std::cout << std::endl;
+  }
+}
