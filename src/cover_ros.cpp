@@ -7,6 +7,8 @@
 #include <ros/console.h>
 
 #include <algorithm>
+#include <set>
+#include <unordered_map>
 
 #define COVER_ERROR(args) ROS_ERROR_STREAM("cover: " << args)
 
@@ -43,8 +45,16 @@ struct coordinate_eq {
   }
 };
 
+struct coordinate_x_less {
+  inline bool
+  operator()(const costmap_2d::MapLocation& _l,
+             const costmap_2d::MapLocation& _r) const noexcept {
+    return _l.x < _r.x;
+  }
+};
+
 cm_polygon
-dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
+sparse_outline(const costmap_2d::Costmap2D& _map, const polygon& _p) {
   // now check every cell on the transformed ring if its free
   cm_polygon sparse(_p.cols());
   for (int cc = 0; cc != _p.cols(); ++cc) {
@@ -56,11 +66,22 @@ dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
   const auto last = std::unique(sparse.begin(), sparse.end(), coordinate_eq{});
   sparse.erase(last, sparse.end());
 
+  return sparse;
+}
+
+inline cm_polygon
+dense_outline(costmap_2d::Costmap2D& _map, const cm_polygon& _p) {
   // get the ray-traced ('dense') outline
   cm_polygon dense;
-  _map.polygonOutlineCells(sparse, dense);
+  _map.polygonOutlineCells(_p, dense);
 
   return dense;
+}
+
+inline cm_polygon
+dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
+  const auto sparse = sparse_outline(_map, _p);
+  return dense_outline(_map, _p);
 }
 
 struct cost_below {
@@ -92,14 +113,52 @@ bool
 check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
                  const se2& _pose) {
   // rotate the polygon to the right pose
-  const polygon sparse = to_affine(_pose) * _p;
-  const auto dense = dense_outline(_map, sparse);
+  const polygon poly = to_affine(_pose) * _p;
+  const auto vertices = sparse_outline(_map, poly);
+  const auto outline = dense_outline(_map, vertices);
 
-  cm_polygon area;
-  _map.convexFillCells(dense, area);
+  // check the outline
+  cost_below cb{_map, costmap_2d::LETHAL_OBSTACLE};
+  if (!std::all_of(outline.begin(), outline.end(), cb))
+    return false;
 
-  cost_below cb(_map, costmap_2d::LETHAL_OBSTACLE);
-  return all_of(area.begin(), area.end(), cb);
+  // now we do a sort-free fill-polygon algorithm for area checking
+  using x_list = std::set<costmap_2d::MapLocation, coordinate_x_less>;
+  using y_hash = std::unordered_map<unsigned int, x_list>;
+
+  y_hash line_scan;
+  // add the dense outline to the y_hash, but skip the vertices
+  // in this way we avoid the issue with cups and horizontal lines
+  coordinate_eq cc;
+  auto v = vertices.begin();
+  for (auto o = outline.begin(); o != outline.end(); ++o) {
+    if (cc(*o, *v))
+      ++v;
+    else
+      line_scan[o->y].insert(*o);
+  }
+
+  // now check for every y line the x-pairs
+  for (const auto& line_pairs : line_scan) {
+    const auto& x_line = line_pairs.second;
+    // check if we are fine to do
+    if (x_line.size() % 2 != 0)
+      throw std::logic_error("line-scan algorithm failed");
+
+    // now check the line between the pairs
+    for (auto start = x_line.begin(); start != x_line.end();
+         std::advance(start, 2)) {
+      const auto end = std::next(start);
+      auto x_min = std::min(start->x, end->x) + 1;
+      const auto x_max = std::max(start->x, end->x) - 1;
+
+      for (; x_min <= x_max; ++x_min)
+        if (_map.getCost(x_min, start->y) == costmap_2d::LETHAL_OBSTACLE)
+          return false;
+    }
+  }
+
+  return true;
 }
 
 bool
