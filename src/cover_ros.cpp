@@ -84,7 +84,7 @@ check_ring(costmap_2d::Costmap2D& _map, const polygon& _ring,
   const polygon sparse = to_affine(_pose) * _ring;
   const auto dense = dense_outline(_map, sparse);
 
-  cost_below cb(_map, costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
+  cost_below cb(_map, costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
   return std::all_of(dense.begin(), dense.end(), cb);
 }
 
