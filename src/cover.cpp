@@ -118,6 +118,7 @@ to_geos(const polygon& _p, double _d) {
 
 footprint
 split(const polygon& _p, const double& _rad) {
+  // todo if _p is smaller then 3, then just return the line?
   return to_geos(_p, _rad);
 }
 
