@@ -29,7 +29,10 @@ make_footprint(const std::vector<geometry_msgs::Point>& _msg) {
   return split(pl, min - 1e-3);
 }
 
-using cm_polygon = std::vector<costmap_2d::MapLocation>;
+// too long to write
+using cm_location = costmap_2d::MapLocation;
+using cm_polygon = std::vector<cm_location>;
+using cm_map = costmap_2d::Costmap2D;
 
 inline Eigen::Affine2d
 to_affine(const se2& _pose) noexcept {
@@ -39,23 +42,14 @@ to_affine(const se2& _pose) noexcept {
 
 struct coordinate_eq {
   inline bool
-  operator()(const costmap_2d::MapLocation& _l,
-             const costmap_2d::MapLocation& _r) const noexcept {
+  operator()(const cm_location& _l, const cm_location& _r) const noexcept {
     return _l.x == _r.x && _l.y == _r.y;
   }
 };
 
-struct coordinate_x_less {
-  inline bool
-  operator()(const costmap_2d::MapLocation& _l,
-             const costmap_2d::MapLocation& _r) const noexcept {
-    return _l.x < _r.x;
-  }
-};
-
 cm_polygon
-sparse_outline(const costmap_2d::Costmap2D& _map, const polygon& _p) {
-  // now check every cell on the transformed ring if its free
+sparse_outline(const cm_map& _map, const polygon& _p) {
+  // rasterise the input _p by the map's resolution
   cm_polygon sparse(_p.cols());
   for (int cc = 0; cc != _p.cols(); ++cc) {
     if (!_map.worldToMap(_p(0, cc), _p(1, cc), sparse[cc].x, sparse[cc].y))
@@ -70,7 +64,7 @@ sparse_outline(const costmap_2d::Costmap2D& _map, const polygon& _p) {
 }
 
 inline cm_polygon
-dense_outline(costmap_2d::Costmap2D& _map, const cm_polygon& _p) {
+dense_outline(cm_map& _map, const cm_polygon& _p) {
   // get the ray-traced ('dense') outline
   cm_polygon dense;
   _map.polygonOutlineCells(_p, dense);
@@ -79,65 +73,69 @@ dense_outline(costmap_2d::Costmap2D& _map, const cm_polygon& _p) {
 }
 
 inline cm_polygon
-dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
+dense_outline(cm_map& _map, const polygon& _p) {
+  // get the rasterized 'sparse' outline and 'densify' it
   const auto sparse = sparse_outline(_map, _p);
   return dense_outline(_map, sparse);
 }
 
+inline cm_polygon
+dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
+  // rotate the polygon to the right pose
+  const polygon sparse = to_affine(_pose) * _p;
+  return dense_outline(_map, sparse);
+}
+
 struct cost_below {
-  cost_below(const costmap_2d::Costmap2D& _m, uint8_t _t) noexcept :
+  cost_below(const cm_map& _m, uint8_t _t) noexcept :
       map_(_m), threshold_(_t) {}
 
   inline bool
-  operator()(const costmap_2d::MapLocation& _ml) const noexcept {
+  operator()(const cm_location& _ml) const noexcept {
     return map_.getCost(_ml.x, _ml.y) < threshold_;
   }
 
 private:
-  const costmap_2d::Costmap2D& map_;
+  const cm_map& map_;
   const uint8_t threshold_;
 };
 
 bool
-check_ring(costmap_2d::Costmap2D& _map, const polygon& _ring,
-           const se2& _pose) {
-  // rotate the polygon to the right pose
-  const polygon sparse = to_affine(_pose) * _ring;
-  const auto dense = dense_outline(_map, sparse);
-
+check_ring(cm_map& _map, const polygon& _ring, const se2& _pose) {
+  const auto dense = dense_outline(_map, _ring, _pose);
   cost_below cb(_map, costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
   return std::all_of(dense.begin(), dense.end(), cb);
 }
 
-// too long to write
-using map_location = costmap_2d::MapLocation;
-
 inline int
-signed_diff(const map_location& _l, const map_location& _r) noexcept {
+signed_diff(const cm_location& _l, const cm_location& _r) noexcept {
+  // note: the variables in cm_locations are unsigned, so we need the cast
   return static_cast<int>(_l.y) - static_cast<int>(_r.y);
 }
 
 inline bool
-is_cusp(const map_location& _l, const map_location& _m,
-        const map_location& _r) noexcept {
+is_cusp(const cm_location& _l, const cm_location& _m,
+        const cm_location& _r) noexcept {
   return signed_diff(_l, _m) * signed_diff(_m, _r) < 0;
 }
 
 bool
-check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
-                 const se2& _pose) {
-  // rotate the polygon to the right pose
-  const polygon poly = to_affine(_pose) * _p;
-  const auto vertices = sparse_outline(_map, poly);
-  const auto outline = dense_outline(_map, vertices);
+check_dense_area(cm_map& _map, const polygon& _p, const se2& _pose) {
+  // get the dense outline of the polygon
+  const auto outline = dense_outline(_map, _p, _pose);
 
-  // check the outline
+  // check the outline - we need this step, since we won't check the outline
+  // cells in the area check below
   cost_below cb{_map, costmap_2d::LETHAL_OBSTACLE};
   if (!std::all_of(outline.begin(), outline.end(), cb))
     return false;
 
-  // now we do a sort-free fill-polygon algorithm for area checking
-  using x_list = std::vector<costmap_2d::MapLocation>;
+  // now we do a sort-free line-fill-algorithm for area checking.
+  // we don't sort by y-values, but just throw them into a hash-map.
+  // algorithm has 2 steps:
+  // 1 - generate the line_scan; (y-lines) of cooridnate pairs
+  // 2 - check pairwise the values
+  using x_list = std::vector<cm_location>;
   using y_hash = std::unordered_map<unsigned int, x_list>;
 
   y_hash line_scan;
@@ -146,6 +144,7 @@ check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
   if (outline.size() < 3)
     throw std::out_of_range("invalid size");
 
+  // below step 1: generate the line_scan structure.
   // we have to be extra-carefully at the ends, since the outline is a closed
   // polygon. here we check the first element
   auto end = std::prev(outline.end());
@@ -165,7 +164,7 @@ check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
   if (!is_cusp(*end, outline.front(), *start))
     line_scan[outline.front().y].emplace_back(outline.front());
 
-  // use a two pointer iteration to check all elements in [start end)
+  // use a two pointer iteration to add 'non-horizontal' elements in [start end)
   for (auto l = outline.begin(), m = start; m != end;) {
     auto r = std::next(m);
     // skip the horizontal part...
@@ -187,7 +186,7 @@ check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
   if (!line_scan[end->y].empty() && line_scan[end->y].size() % 2 == 1)
     line_scan[end->y].emplace_back(*end);
 
-  // now check for every y line the x-pairs
+  // below step 2: now check for every y line the x-pairs
   for (const auto& line_pairs : line_scan) {
     const auto& x_line = line_pairs.second;
     // sanity check if we are good to go
@@ -210,8 +209,7 @@ check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
 }
 
 bool
-check_dense(costmap_2d::Costmap2D& _map, const polygon_vec& _pl,
-            const se2& _pose) {
+check_dense(cm_map& _map, const polygon_vec& _pl, const se2& _pose) {
   auto checker = [&](const polygon& _p) {
     return check_dense_area(_map, _p, _pose);
   };
