@@ -125,3 +125,34 @@ TEST_P(check_area_fixture, generic) {
 
   EXPECT_TRUE(check_area(map, p, center));
 }
+
+TEST(check_area, unit_circle) {
+  // test is same as above but with a unit circle
+  // todo refactor into one function
+  costmap_2d::Costmap2D map(30, 30, 0.1, -1.5, -1.5);
+  base_local_planner::FootprintHelper fh;
+  const polygon circle = make_circle(8, 1);
+  const Eigen::Vector3d center{0, 0, 0};
+
+  const auto msg = to_msgs(circle);
+  const auto cells = fh.getFootprintCells(center.cast<float>(), msg, map, true);
+
+  // iterate over all cells
+  for (const auto& c : cells) {
+    // mark one cell as occupied
+    map.setCost(c.x, c.y, costmap_2d::LETHAL_OBSTACLE);
+
+    // check that we are correct
+    EXPECT_FALSE(check_area(map, circle, center));
+
+    // clear the cell
+    map.setCost(c.x, c.y, 0);
+  }
+
+  // now mark all cells but the footprint as occupied
+  map.setDefaultValue(costmap_2d::LETHAL_OBSTACLE);
+  for (const auto& c : cells)
+    map.setCost(c.x, c.y, 0);
+
+  EXPECT_TRUE(check_area(map, circle, center));
+}
