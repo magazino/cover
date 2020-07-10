@@ -14,6 +14,9 @@ footprint
 make_footprint(const std::vector<geometry_msgs::Point>& _msg);
 
 bool
+check_area(costmap_2d::Costmap2D& _map, const polygon& _p, const se2& _pose);
+
+bool
 check_pose_throw(costmap_2d::Costmap2D& _map, const footprint& _footprint,
                  const se2& _pose, check_type _type);
 

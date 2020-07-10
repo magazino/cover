@@ -121,7 +121,7 @@ is_cusp(const cm_location& _l, const cm_location& _m,
 }
 
 bool
-check_dense_area(cm_map& _map, const polygon& _p, const se2& _pose) {
+check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
   // get the dense outline of the polygon
   const auto outline = dense_outline(_map, _p, _pose);
 
@@ -218,7 +218,7 @@ check_dense_area(cm_map& _map, const polygon& _p, const se2& _pose) {
 bool
 check_dense(cm_map& _map, const polygon_vec& _pl, const se2& _pose) {
   auto checker = [&](const polygon& _p) {
-    return check_dense_area(_map, _p, _pose);
+    return check_area(_map, _p, _pose);
   };
 
   return std::all_of(_pl.begin(), _pl.end(), checker);
