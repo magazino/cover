@@ -7,8 +7,8 @@
 #include <ros/console.h>
 
 #include <algorithm>
-#include <set>
 #include <unordered_map>
+#include <vector>
 
 #define COVER_ERROR(args) ROS_ERROR_STREAM("cover: " << args)
 
@@ -74,7 +74,7 @@ dense_outline(cm_map& _map, const cm_polygon& _p) {
 
 inline cm_polygon
 dense_outline(cm_map& _map, const polygon& _p) {
-  // get the rasterized 'sparse' outline and 'densify' it
+  // get the 'sparse' outline and 'densify' it
   const auto sparse = sparse_outline(_map, _p);
   return dense_outline(_map, sparse);
 }
@@ -194,7 +194,9 @@ check_dense_area(cm_map& _map, const polygon& _p, const se2& _pose) {
       throw std::logic_error("line-scan algorithm failed");
 
     // now check the line between the pairs
+    // note: skip the border-cells, since we checked them above
     for (auto start = x_line.begin(); start != x_line.end(); start += 2) {
+      // end is defined, since do have 2-steps-increments
       const auto end = std::next(start);
       const auto x_max = std::max(start->x, end->x) - 1;
 

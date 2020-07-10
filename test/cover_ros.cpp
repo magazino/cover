@@ -63,15 +63,15 @@ TEST_P(inside_map_fixture, generic) {
 
 TEST(outline, triangle) {
   costmap_2d::Costmap2D map(30, 30, 0.1, -1.5, -1.5);
-  std::vector<geometry_msgs::Point> msg(3);
+  std::vector<geometry_msgs::Point> msg(4);
   msg[0].x = 1;
-  msg[0].y = 0;
+  msg[0].y = 1;
   msg[1].x = -1;
   msg[1].y = 1;
   msg[2].x = -1;
   msg[2].y = -1;
-  // msg[3].x = 1;
-  // msg[3].y = -1;
+  msg[3].x = 1;
+  msg[3].y = -1;
   Eigen::Vector3d center{0, 0, 0};
   map.mapToWorld(15, 15, center.x(), center.y());
   // paint the outline into the map
