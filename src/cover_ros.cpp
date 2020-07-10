@@ -68,6 +68,7 @@ inline cm_polygon
 dense_outline(cm_map& _map, const cm_polygon& _p) {
   // get the ray-traced ('dense') outline
   cm_polygon dense;
+  // todo: unfortunately this is super crappy
   _map.polygonOutlineCells(_p, dense);
 
   return dense;

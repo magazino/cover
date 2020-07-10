@@ -1,13 +1,7 @@
 #include <cover_ros.hpp>
 #include <gtest/gtest.h>
 
-#include <random>
-
 #include <base_local_planner/footprint_helper.h>
-#include <costmap_2d/costmap_layer.h>
-#include <costmap_2d/inflation_layer.h>
-#include <costmap_2d/layer.h>
-#include <costmap_2d/layered_costmap.h>
 
 using namespace cover;
 
@@ -131,54 +125,3 @@ TEST_P(check_area_fixture, generic) {
 
   EXPECT_TRUE(check_area(map, p, center));
 }
-
-// TEST(outline, triangle) {
-//   costmap_2d::Costmap2D map(30, 30, 0.1, -1.5, -1.5);
-//   std::vector<geometry_msgs::Point> msg(4);
-//   msg[0].x = 1;
-//   msg[0].y = 1;
-//   msg[1].x = -1;
-//   msg[1].y = 1;
-//   msg[2].x = -1;
-//   msg[2].y = -1;
-//   msg[3].x = 1;
-//   msg[3].y = -1;
-//   Eigen::Vector3d center{0, 0, 0};
-//   map.mapToWorld(15, 15, center.x(), center.y());
-//   // paint the outline into the map
-//   base_local_planner::FootprintHelper fh;
-//   const auto cells = fh.getFootprintCells(center.cast<float>(), msg, map,
-//   true);
-
-// for (const auto& c : cells) {
-//   map.setCost(c.x, c.y, 1);
-// }
-
-// const auto fp = make_footprint(msg);
-// check_pose_throw(map, fp, center, check_type::DENSE);
-// for (const auto& d : fp.dense) {
-//   std::cout << d.transpose() << std::endl << std::endl;
-//   // convert to msg
-//   std::vector<geometry_msgs::Point> dm(d.cols());
-//   for (int cc = 0; cc != d.cols(); ++cc) {
-//     dm[cc].x = d(0, cc);
-//     dm[cc].y = d(1, cc);
-//   }
-//   const auto dc = fh.getFootprintCells(center.cast<float>(), dm, map,
-//   true);
-
-//   for (const auto& c : dc) {
-//     map.setCost(c.x, c.y, map.getCost(c.x, c.y) + 2);
-//     // map.setCost(c.x, c.y, 3);
-//   }
-//   // break;
-// }
-
-// print the map
-//   for (int ii = 0; ii != 30; ++ii) {
-//     for (int jj = 0; jj != 30; ++jj) {
-//       std::cout << static_cast<int>(map.getCost(ii, jj)) << ",";
-//     }
-//     std::cout << std::endl;
-//   }
-// }
