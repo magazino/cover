@@ -89,5 +89,4 @@ cover_polygon(benchmark::State& state) {
 
 BENCHMARK(cover_polygon);
 
-
 BENCHMARK_MAIN();
