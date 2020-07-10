@@ -81,7 +81,7 @@ dense_outline(costmap_2d::Costmap2D& _map, const cm_polygon& _p) {
 inline cm_polygon
 dense_outline(costmap_2d::Costmap2D& _map, const polygon& _p) {
   const auto sparse = sparse_outline(_map, _p);
-  return dense_outline(_map, _p);
+  return dense_outline(_map, sparse);
 }
 
 struct cost_below {
@@ -109,6 +109,20 @@ check_ring(costmap_2d::Costmap2D& _map, const polygon& _ring,
   return std::all_of(dense.begin(), dense.end(), cb);
 }
 
+// too long to write
+using map_location = costmap_2d::MapLocation;
+
+inline int
+signed_diff(const map_location& _l, const map_location& _r) noexcept {
+  return static_cast<int>(_l.y) - static_cast<int>(_r.y);
+}
+
+inline bool
+is_cusp(const map_location& _l, const map_location& _m,
+        const map_location& _r) noexcept {
+  return signed_diff(_l, _m) * signed_diff(_m, _r) < 0;
+}
+
 bool
 check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
                  const se2& _pose) {
@@ -123,38 +137,72 @@ check_dense_area(costmap_2d::Costmap2D& _map, const polygon& _p,
     return false;
 
   // now we do a sort-free fill-polygon algorithm for area checking
-  using x_list = std::set<costmap_2d::MapLocation, coordinate_x_less>;
+  using x_list = std::vector<costmap_2d::MapLocation>;
   using y_hash = std::unordered_map<unsigned int, x_list>;
 
   y_hash line_scan;
-  // add the dense outline to the y_hash, but skip the vertices
-  // in this way we avoid the issue with cups and horizontal lines
-  coordinate_eq cc;
-  auto v = vertices.begin();
-  for (auto o = outline.begin(); o != outline.end(); ++o) {
-    if (cc(*o, *v))
-      ++v;
-    else
-      line_scan[o->y].insert(*o);
+
+  // better safe then sorry
+  if (outline.size() < 3)
+    throw std::out_of_range("invalid size");
+
+  // we have to be extra-carefully at the ends, since the outline is a closed
+  // polygon. here we check the first element
+  auto end = std::prev(outline.end());
+  while (end != outline.begin() && end->y == outline.begin()->y)
+    --end;
+
+  if (end == outline.begin())
+    throw std::runtime_error("no area defined");
+
+  auto start = std::next(outline.begin());
+  while (start != end && start->y == outline.begin()->y)
+    ++start;
+
+  if (start == end)
+    throw std::runtime_error("no area defined");
+
+  if (!is_cusp(*end, outline.front(), *start))
+    line_scan[outline.front().y].emplace_back(outline.front());
+
+  // use a two pointer iteration to check all elements in [start end)
+  for (auto l = outline.begin(), m = start; m != end;) {
+    auto r = std::next(m);
+    // skip the horizontal part...
+    while (r != end && m->y == r->y) {
+      ++r;
+      ++m;
+    }
+
+    // skips cusps in y-direction...
+    if (!is_cusp(*l, *m, *r))
+      line_scan[m->y].emplace_back(*m);
+
+    // update the variables
+    l = m;
+    m = r;
   }
+
+  // check end - here we short-cut the algorithm
+  if (!line_scan[end->y].empty() && line_scan[end->y].size() % 2 == 1)
+    line_scan[end->y].emplace_back(*end);
 
   // now check for every y line the x-pairs
   for (const auto& line_pairs : line_scan) {
     const auto& x_line = line_pairs.second;
-    // check if we are fine to do
+    // sanity check if we are good to go
     if (x_line.size() % 2 != 0)
       throw std::logic_error("line-scan algorithm failed");
 
     // now check the line between the pairs
-    for (auto start = x_line.begin(); start != x_line.end();
-         std::advance(start, 2)) {
+    for (auto start = x_line.begin(); start != x_line.end(); start += 2) {
       const auto end = std::next(start);
-      auto x_min = std::min(start->x, end->x) + 1;
       const auto x_max = std::max(start->x, end->x) - 1;
 
-      for (; x_min <= x_max; ++x_min)
-        if (_map.getCost(x_min, start->y) == costmap_2d::LETHAL_OBSTACLE)
-          return false;
+      for (auto x_min = std::min(start->x, end->x) + 1; x_min <= x_max; ++x_min)
+        _map.setCost(x_min, start->y, _map.getCost(x_min, start->y) + 1);
+      // if (_map.getCost(x_min, start->y) == costmap_2d::LETHAL_OBSTACLE)
+      //   return false;
     }
   }
 
