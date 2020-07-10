@@ -7,6 +7,7 @@
 #include <ros/console.h>
 
 #include <algorithm>
+#include <iterator>
 #include <unordered_map>
 #include <vector>
 
@@ -161,6 +162,7 @@ check_dense_area(cm_map& _map, const polygon& _p, const se2& _pose) {
   if (start == end)
     throw std::runtime_error("no area defined");
 
+  // the actual 'wrapped' check [end ..., begin(), ...start]
   if (!is_cusp(*end, outline.front(), *start))
     line_scan[outline.front().y].emplace_back(outline.front());
 
@@ -198,12 +200,15 @@ check_dense_area(cm_map& _map, const polygon& _p, const se2& _pose) {
     for (auto start = x_line.begin(); start != x_line.end(); start += 2) {
       // end is defined, since do have 2-steps-increments
       const auto end = std::next(start);
-      const auto x_max = std::max(start->x, end->x) - 1;
+
+      // we have to be carefull here, since x_max is unsigned
+      auto x_max = std::max(start->x, end->x);
+      if(x_max != 0)
+        --x_max;
 
       for (auto x_min = std::min(start->x, end->x) + 1; x_min <= x_max; ++x_min)
-        _map.setCost(x_min, start->y, _map.getCost(x_min, start->y) + 1);
-      // if (_map.getCost(x_min, start->y) == costmap_2d::LETHAL_OBSTACLE)
-      //   return false;
+        if (_map.getCost(x_min, start->y) == costmap_2d::LETHAL_OBSTACLE)
+          return false;
     }
   }
 
