@@ -57,3 +57,18 @@ if(CATKIN_ENABLE_TESTING)
     target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_ros gtest_main)
   endif()
 endif()
+
+###############
+## Benchmark ##
+###############
+
+set(COVER_BENCHMARK "Enable benchmarking" ON)
+if(COVER_BENCHMARK)
+  find_package(benchmark)
+  if(benchmark_FOUND)
+    add_executable(${PROJECT_NAME}_perf perf/cover.cpp)
+    target_link_libraries(${PROJECT_NAME}_perf benchmark::benchmark ${PROJECT_NAME}_ros)
+  else()
+    message("benchmark library not found")
+  endif()
+endif()

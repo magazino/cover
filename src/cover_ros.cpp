@@ -69,6 +69,7 @@ dense_outline(cm_map& _map, const cm_polygon& _p) {
   // get the ray-traced ('dense') outline
   cm_polygon dense;
   // todo: unfortunately this is super crappy
+  // and unique is not really speeding up
   _map.polygonOutlineCells(_p, dense);
 
   return dense;
@@ -204,7 +205,7 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
 
       // we have to be carefull here, since x_max is unsigned
       auto x_max = std::max(start->x, end->x);
-      if(x_max != 0)
+      if (x_max != 0)
         --x_max;
 
       for (auto x_min = std::min(start->x, end->x) + 1; x_min <= x_max; ++x_min)
@@ -218,9 +219,7 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
 
 bool
 check_dense(cm_map& _map, const polygon_vec& _pl, const se2& _pose) {
-  auto checker = [&](const polygon& _p) {
-    return check_area(_map, _p, _pose);
-  };
+  auto checker = [&](const polygon& _p) { return check_area(_map, _p, _pose); };
 
   return std::all_of(_pl.begin(), _pl.end(), checker);
 }
