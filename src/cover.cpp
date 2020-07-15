@@ -16,7 +16,7 @@ constexpr char mod_name[] = "cover: ";
 #define COVER_WARN(args) ROS_WARN_STREAM(mod_name << args)
 
 // lets be lazy and define useful aliases as <NAME>Ptr
-#define MAKE_UNIQUE_PTR(name) using name##Ptr = std::unique_ptr<name>;
+#define MAKE_UNIQUE_PTR(name) using name##Ptr = std::unique_ptr<name>
 
 namespace geos {
 namespace geom {
@@ -49,9 +49,6 @@ inline polygon
 to_eigen(const gg::Polygon& _p) noexcept {
   return to_eigen(*_p.getExteriorRing()->getCoordinates());
 }
-
-// allow millimeter tolerance
-constexpr double tolerance = 1e-3;
 
 footprint
 to_geos(const polygon& _p, double _d) {

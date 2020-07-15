@@ -13,6 +13,7 @@
 
     <depend>costmap_2d</depend>
     <depend>roscpp</depend>
-
+    <!-- only for testing -->
     <depend>base_local_planner</depend>
+    <depend>libgeos++-dev</depend>
 </package>

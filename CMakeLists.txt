@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 2.8.1)
 project(cover)
 
 set(CATKIN_REQUIRED_PACKAGE base_local_planner costmap_2d roscpp)
+set(CMAKE_CXX_STANDARD 11)
+add_compile_options(-Wpedantic -Wall -Wextra)
+set(CMAKE_CXX_CLANG_TIDY
+  "clang-tidy; -checks=*, -clang-analyzer-cplusplus*, -clang-diagnostic-*, -clang-analyzer-*")
+
 
 find_package(catkin REQUIRED COMPONENTS ${CATKIN_REQUIRED_PACKAGE})
 find_package(Eigen3 REQUIRED)
@@ -28,6 +33,7 @@ add_library(${PROJECT_NAME}_ros src/cover_ros.cpp)
 target_link_libraries(${PROJECT_NAME}_ros ${PROJECT_NAME})
 
 # test node
+# todo remove this node
 add_executable(${PROJECT_NAME}_node src/cover_node.cpp)
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
 
