@@ -42,8 +42,12 @@ check_area(costmap_2d::Costmap2D& _map, const polygon& _p, const se2& _pose);
  *
  * @throw if the pose if out of map
  *
- * If you specify the check_type::ALL or check_type::RING, the costmap must
- * include inflation information from the costmap_2d::InflationLayer.
+ * If you specify check_type::DENSE, we will **only** the dense part.
+ * If you specify check_type::RING, we will **only** check the inflated-ring.
+ * If you specify check_type::ALL, both we will check both types.
+ *
+ * Note: In case of passing check_type::ALL or check_type::RING, the costmap
+ * **must** include inflation information from the costmap_2d::InflationLayer.
  */
 bool
 check_pose_throw(costmap_2d::Costmap2D& _map, const footprint& _footprint,
