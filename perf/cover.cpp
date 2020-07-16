@@ -1,31 +1,11 @@
 #include <benchmark/benchmark.h>
 
 #include <cover_ros.hpp>
+#include <cover_test_utils.hpp>
+
 #include <base_local_planner/footprint_helper.h>
 
 using namespace cover;
-
-polygon
-make_circle(size_t s, double _rad) noexcept {
-  polygon out(2, s);
-  for (size_t ii = 0; ii != s; ++ii) {
-    const auto angle = M_PI * 2 * ii / s;
-    out.col(ii) << std::cos(angle), std::sin(angle);
-  }
-  // scale
-  out *= _rad;
-  return out;
-}
-
-std::vector<geometry_msgs::Point>
-to_msgs(const polygon& _p) noexcept {
-  std::vector<geometry_msgs::Point> msg(_p.cols());
-  for (int cc = 0; cc != _p.cols(); ++cc) {
-    msg[cc].x = _p(0, cc);
-    msg[cc].y = _p(1, cc);
-  }
-  return msg;
-}
 
 static void
 footprint_helper_unit_circle(benchmark::State& state) {
