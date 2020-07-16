@@ -27,6 +27,15 @@ struct footprint {
   polygon ring;
 };
 
+/**
+ * @brief function will split the given polygon with a given radius into
+ * the footprint structure.
+ *
+ * @param _p polygon with at least three distinct points
+ * @param _rad inflation radius for calculating the ring
+ *
+ * @throw if the input is ill-formed
+ */
 footprint
 split(const polygon& _p, const double& _rad);
 
