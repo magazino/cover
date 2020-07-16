@@ -136,18 +136,18 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
   // now we do a sort-free line-fill-algorithm for area checking.
   // we don't sort by y-values, but just throw them into a hash-map.
   // algorithm has 2 steps:
-  // 1 - generate the line_scan; (y-lines) of cooridnate pairs
+  // 1 - generate the scan_line; (y-lines) of cooridnate pairs
   // 2 - check pairwise the values
   using x_list = std::vector<cm_location>;
   using y_hash = std::unordered_map<unsigned int, x_list>;
 
-  y_hash line_scan;
+  y_hash scan_line;
 
   // better safe then sorry
   if (outline.size() < 3)
     throw std::out_of_range("invalid size");
 
-  // below step 1: generate the line_scan structure.
+  // below step 1: generate the scan_line structure.
   // we have to be extra-carefully at the ends, since the outline is a closed
   // polygon. here we check the first element
   auto end = std::prev(outline.end());
@@ -166,7 +166,7 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
 
   // the actual 'wrapped' check [end ..., begin(), ...start]
   if (!is_cusp(*end, outline.front(), *start))
-    line_scan[outline.front().y].emplace_back(outline.front());
+    scan_line[outline.front().y].emplace_back(outline.front());
 
   // use a two pointer iteration to add 'non-horizontal' elements in [start end)
   for (auto l = outline.begin(), m = start; m != end;) {
@@ -179,7 +179,7 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
 
     // skips cusps in y-direction...
     if (!is_cusp(*l, *m, *r))
-      line_scan[m->y].emplace_back(*m);
+      scan_line[m->y].emplace_back(*m);
 
     // update the variables
     l = m;
@@ -187,11 +187,11 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
   }
 
   // check end - here we short-cut the algorithm
-  if (!line_scan[end->y].empty() && line_scan[end->y].size() % 2 == 1)
-    line_scan[end->y].emplace_back(*end);
+  if (!scan_line[end->y].empty() && scan_line[end->y].size() % 2 == 1)
+    scan_line[end->y].emplace_back(*end);
 
   // below step 2: now check for every y line the x-pairs
-  for (const auto& line_pairs : line_scan) {
+  for (const auto& line_pairs : scan_line) {
     const auto& x_line = line_pairs.second;
     // sanity check if we are good to go
     if (x_line.size() % 2 != 0)
