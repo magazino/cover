@@ -18,8 +18,16 @@ constexpr char mod_name[] = "cover: ";
 // lets be lazy and define useful aliases as <NAME>Ptr
 #define MAKE_UNIQUE_PTR(name) using name##Ptr = std::unique_ptr<name>
 
-namespace geos {
-namespace geom {
+namespace cover {
+
+// define short-cut for the geos-namespace
+namespace gg = geos::geom;
+
+// define easier access to the main classes
+using gg::CoordinateSequence;
+using gg::Geometry;
+using gg::LinearRing;
+using gg::Polygon;
 
 // define some pointers for simpler handling
 MAKE_UNIQUE_PTR(Geometry);
@@ -28,13 +36,6 @@ MAKE_UNIQUE_PTR(Polygon);
 MAKE_UNIQUE_PTR(CoordinateSequence);
 // something special...
 using GeometryVecPtr = std::unique_ptr<Geometry::NonConstVect>;
-
-}  // namespace geom
-}  // namespace geos
-
-namespace cover {
-
-namespace gg = geos::geom;
 
 polygon
 to_eigen(const gg::CoordinateSequence& _s) noexcept {
@@ -58,7 +59,7 @@ to_geos(const polygon& _p, double _d) {
   COVER_INFO("setting up geometry...");
 
   // convert to CoordinateSequence
-  gg::CoordinateSequencePtr sequence(new gg::CoordinateArraySequence());
+  CoordinateSequencePtr sequence(new gg::CoordinateArraySequence());
   for (int cc = 0; cc != _p.cols(); ++cc)
     sequence->add(gg::Coordinate{_p(0, cc), _p(1, cc)});
 
@@ -72,11 +73,11 @@ to_geos(const polygon& _p, double _d) {
 
   // linear ring will take the ownership now
   // throws if invalid
-  gg::LinearRingPtr ring{factory->createLinearRing(sequence.release())};
-  gg::GeometryVecPtr holes{new gg::Geometry::NonConstVect()};
+  LinearRingPtr ring{factory->createLinearRing(sequence.release())};
+  GeometryVecPtr holes{new gg::Geometry::NonConstVect()};
 
   // polygon takes ownership of everything
-  gg::PolygonPtr poly(factory->createPolygon(ring.release(), holes.release()));
+  PolygonPtr poly(factory->createPolygon(ring.release(), holes.release()));
 
   if (!poly->isValid())
     throw std::runtime_error("failed to construct a valid polygon");
@@ -84,14 +85,14 @@ to_geos(const polygon& _p, double _d) {
   COVER_INFO("erode/inflating with the radius " << _d);
 
   // erode the geometry
-  gg::GeometryPtr eroded{poly->buffer(-_d, 16)};
+  GeometryPtr eroded{poly->buffer(-_d, 16)};
   if (eroded->isEmpty()) {
     COVER_WARN("distance " << _d << " too big");
   }
 
   // inflate it back and get the diff
-  gg::GeometryPtr inflated{eroded->buffer(_d)};
-  gg::GeometryPtr diff{poly->difference(inflated.get())};
+  GeometryPtr inflated{eroded->buffer(_d)};
+  GeometryPtr diff{poly->difference(inflated.get())};
 
   // convert the geometry to polygons
   // the ownership lies at the geometry object
