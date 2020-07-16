@@ -3,17 +3,22 @@
 
 #include <base_local_planner/footprint_helper.h>
 
+#include <cmath>
+#include <tuple>
+#include <vector>
+
 using namespace cover;
 
 polygon
-make_circle(size_t s, double _rad) noexcept {
-  polygon out(2, s);
-  for (size_t ii = 0; ii != s; ++ii) {
-    const auto angle = M_PI * 2 * ii / s;
+make_circle(size_t _s, double _radius) noexcept {
+  polygon out(2, _s);
+  const auto d_s = static_cast<double>(_s);
+  for (int ii = 0; ii != out.cols(); ++ii) {
+    const auto angle = M_PI * 2 * ii / d_s;
     out.col(ii) << std::cos(angle), std::sin(angle);
   }
   // scale
-  out *= _rad;
+  out *= _radius;
   return out;
 }
 
