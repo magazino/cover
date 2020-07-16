@@ -111,7 +111,7 @@ check_ring(cm_map& _map, const polygon& _ring, const se2& _pose) {
 }
 
 inline int
-signed_diff(const cm_location& _l, const cm_location& _r) noexcept {
+signed_y_diff(const cm_location& _l, const cm_location& _r) noexcept {
   // note: the variables in cm_locations are unsigned, so we need the cast
   return static_cast<int>(_l.y) - static_cast<int>(_r.y);
 }
@@ -119,7 +119,7 @@ signed_diff(const cm_location& _l, const cm_location& _r) noexcept {
 inline bool
 is_cusp(const cm_location& _l, const cm_location& _m,
         const cm_location& _r) noexcept {
-  return signed_diff(_l, _m) * signed_diff(_m, _r) < 0;
+  return signed_y_diff(_l, _m) * signed_y_diff(_m, _r) < 0;
 }
 
 bool
