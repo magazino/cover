@@ -1,8 +1,8 @@
 # COVER
 
 ## Idea
-The library generates splits a given polygon into a inscribed inner polygon and
-the remainders.
+The library splits a given polygon into a inscribed inner polygon and the
+remainders.
 This allows you to check only the remainders cell-wise for collision and the
 inscribed area for inscribed cost.
 
