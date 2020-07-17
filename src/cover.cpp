@@ -10,8 +10,14 @@
 
 #include <ros/console.h>
 
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+
 constexpr char mod_name[] = "cover: ";
 
+#define COVER_DEBUG(args) ROS_DEBUG_STREAM(mod_name << args)
 #define COVER_INFO(args) ROS_INFO_STREAM(mod_name << args)
 #define COVER_WARN(args) ROS_WARN_STREAM(mod_name << args)
 
@@ -49,6 +55,28 @@ to_eigen(const gg::CoordinateSequence& _s) noexcept {
 inline polygon
 to_eigen(const gg::Polygon& _p) noexcept {
   return to_eigen(*_p.getExteriorRing()->getCoordinates());
+}
+
+std::string
+to_string(const GeometryPtr& _inflated,
+          const gg::Polygon::ConstVect& _dense) noexcept {
+  // function compbines everything into a MULTIPOLYGON string
+  // legnth of "POLYGON "
+  constexpr size_t start = 8;
+
+  std::stringstream ss;
+  ss << "MULTIPOLYGON (";
+  try {
+    ss << _inflated->toString().substr(start);
+    for (const auto& polygon_ptr : _dense)
+      ss << ", " << polygon_ptr->toString().substr(start);
+  }
+  catch (std::out_of_range& ex) {
+    COVER_WARN("failed to generate wkt: " << ex.what());
+  }
+
+  ss << ")";
+  return ss.str();
 }
 
 footprint
@@ -110,6 +138,9 @@ to_geos(const polygon& _p, double _d) {
     if (polygon_ptr->getNumInteriorRing() != 0)
       throw std::runtime_error("interior rings must be empty");
   }
+
+  // finally print the wkt-representation
+  COVER_DEBUG(to_string(inflated, polygons));
 
   return out;
 }
