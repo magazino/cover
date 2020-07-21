@@ -33,16 +33,16 @@ check_area(costmap_2d::Costmap2D& _map, const polygon& _p, const se2& _pose);
 /**
  * @brief checks if the pose is collision-free
  *
- * @param _map ros-costmap. note: we wont alter the map, but its ros...
+ * @param _map ros-costmap. note: we wont alter the map, but it's ros...
  * @param _footprint footprint structure (see make_footprint)
- * @param _pose the metrical pose of the footprint
+ * @param _pose the pose of the footprint in global coordinate frame
  * @param _type the type of checks to perform
  *
  * @return true, if the pose is collision-free
  *
  * @throw if the pose if out of map
  *
- * If you specify check_type::DENSE, we will **only** the dense part.
+ * If you specify check_type::DENSE, we will **only** check the dense part.
  * If you specify check_type::RING, we will **only** check the inflated-ring.
  * If you specify check_type::ALL, both we will check both types.
  *

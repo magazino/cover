@@ -85,7 +85,7 @@ INSTANTIATE_TEST_CASE_P(
                      testing::Values(-2., -1., 0., 1., 2.)));
 
 TEST_P(check_area_fixture, generic) {
-  Eigen::Vector3d center{0, 0, yaw};
+  se2 center{0, 0, yaw};
   map.mapToWorld(15, 15, center.x(), center.y());
   const auto msg = to_msgs(p);
   const auto cells = fh.getFootprintCells(center.cast<float>(), msg, map, true);
@@ -116,7 +116,7 @@ TEST(check_area, unit_circle) {
   costmap_2d::Costmap2D map(30, 30, 0.1, -1.5, -1.5);
   base_local_planner::FootprintHelper fh;
   const polygon circle = make_circle(8, 1);
-  const Eigen::Vector3d center{0, 0, 0};
+  const se2 center{0, 0, 0};
 
   const auto msg = to_msgs(circle);
   const auto cells = fh.getFootprintCells(center.cast<float>(), msg, map, true);

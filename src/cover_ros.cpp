@@ -69,7 +69,7 @@ dense_outline(cm_map& _map, const cm_polygon& _p) {
   // get the ray-traced ('dense') outline
   cm_polygon dense;
   // todo: unfortunately this is super crappy
-  // and unique is not really speeding up
+  // and std::unique is not really speeding up
   _map.polygonOutlineCells(_p, dense);
 
   return dense;
@@ -143,12 +143,12 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
 
   y_hash scan_line;
 
-  // better safe then sorry
+  // better safe than sorry
   if (outline.size() < 3)
     throw std::out_of_range("invalid size");
 
   // below step 1: generate the scan_line structure.
-  // we have to be extra-carefully at the ends, since the outline is a closed
+  // we have to be extra-careful at the ends, since the outline is a closed
   // polygon. here we check the first element
   auto end = std::prev(outline.end());
   while (end != outline.begin() && end->y == outline.begin()->y)
@@ -164,7 +164,7 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
   if (start == end)
     throw std::runtime_error("no area defined");
 
-  // the actual 'wrapped' check [end ..., begin(), ...start]
+  // the actual 'wrapped' check: [end ..., begin(), ...start]
   if (!is_cusp(*end, outline.front(), *start))
     scan_line[outline.front().y].emplace_back(outline.front());
 
@@ -186,7 +186,8 @@ check_area(cm_map& _map, const polygon& _p, const se2& _pose) {
     m = r;
   }
 
-  // check end - here we short-cut the algorithm
+  // check end - here we short-cut the algorithm and just check if the final
+  // scan_line has odd number of elements
   if (!scan_line[end->y].empty() && scan_line[end->y].size() % 2 == 1)
     scan_line[end->y].emplace_back(*end);
 

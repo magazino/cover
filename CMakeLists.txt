@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 2.8.1)
 project(cover)
 
 set(CATKIN_REQUIRED_PACKAGE base_local_planner costmap_2d roscpp)
-set(CMAKE_CXX_STANDARD 11)
+# library targets ros-melodic or newer.
+# set CMAKE_CXX_STANDARD to 11 if compiling otherwise.
 add_compile_options(-Wpedantic -Wall -Wextra)
 set(CMAKE_CXX_CLANG_TIDY
   "clang-tidy; -checks=*, -clang-analyzer-cplusplus*, -clang-diagnostic-*, -clang-analyzer-*")

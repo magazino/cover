@@ -19,8 +19,8 @@ enum class check_type { DENSE, RING, ALL };
  * The footprint consists out of 2 types of data - dense and ring.
  *
  * The footprint is in collsion if
- *  * points **on** the ring are within the inflated cost area
- *  * points **inside** the dense areas are within lethal cost area
+ *  * points **on** the ring have inflated cost or higher
+ *  * points **inside** the dense areas have lethal cost
  */
 struct footprint {
   polygon_vec dense;
