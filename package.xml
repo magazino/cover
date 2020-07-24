@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>cover</name>
+    <version>0.0.0</version>
+    <description>The cover package contains code for efficient path checking
+    </description>
+
+    <maintainer email="dorezyuk@magazino.eu">Dima Dorezyuk</maintainer>
+
+    <license>Magazino GmbH</license>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <depend>costmap_2d</depend>
+    <depend>roscpp</depend>
+    <!-- only for testing -->
+    <depend>base_local_planner</depend>
+    <depend>libgeos++-dev</depend>
+</package>
