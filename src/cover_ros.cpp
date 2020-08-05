@@ -41,52 +41,39 @@ to_affine(const se2& _pose) noexcept {
          Eigen::Rotation2Dd(_pose.z());
 }
 
-struct coordinate_eq {
-  inline bool
-  operator()(const cm_location& _l, const cm_location& _r) const noexcept {
-    return _l.x == _r.x && _l.y == _r.y;
-  }
-};
+bool
+within_bounds(const polygon& _p, const point& _min, const point& _max) {
+  // check lower
+  if (((_p.colwise() - _min).array() < 0).any())
+    return false;
+
+  // upper check
+  if (((_p.colwise() - _max).array() >= 0).any())
+    return false;
+  return true;
+}
 
 cm_polygon
-sparse_outline(const cm_map& _map, const polygon& _p) {
-  // rasterise the input _p by the map's resolution
-  cm_polygon sparse(_p.cols());
-  for (int cc = 0; cc != _p.cols(); ++cc) {
-    if (!_map.worldToMap(_p(0, cc), _p(1, cc), sparse[cc].x, sparse[cc].y))
-      throw std::out_of_range("ring outside of the map");
-  }
-
-  // make it unique, since our internal resolution might be more granular
-  const auto last = std::unique(sparse.begin(), sparse.end(), coordinate_eq{});
-  sparse.erase(last, sparse.end());
-
-  return sparse;
-}
-
-inline cm_polygon
-dense_outline(cm_map& _map, const cm_polygon& _p) {
-  // get the ray-traced ('dense') outline
-  cm_polygon dense;
-  // todo: unfortunately this is super crappy
-  // and std::unique is not really speeding up
-  _map.polygonOutlineCells(_p, dense);
-
-  return dense;
-}
-
-inline cm_polygon
-dense_outline(cm_map& _map, const polygon& _p) {
-  // get the 'sparse' outline and 'densify' it
-  const auto sparse = sparse_outline(_map, _p);
-  return dense_outline(_map, sparse);
-}
-
-inline cm_polygon
 dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
-  // rotate the polygon to the right pose
-  const polygon sparse = to_affine(_pose) * _p;
-  return dense_outline(_map, sparse);
+  // rotate the polygon to the right pose and make it relative
+  const point offset(_map.getOriginX(), _map.getOriginY());
+  const polygon absolute = to_affine(_pose) * _p;
+  const polygon relative = absolute.colwise() - offset;
+
+  // check if the polygon is inside of the map
+  const point size{_map.getSizeInMetersX(), _map.getSizeInMetersY()};
+  if (!within_bounds(relative, point::Zero(), size))
+    throw std::out_of_range("polygon outside of map");
+
+  const auto dense = discretise(relative, _map.getResolution());
+
+  // convert to the costmap format
+  cm_polygon out(dense.size());
+  std::transform(dense.begin(), dense.end(), out.begin(), [](const cell& _c) {
+    return costmap_2d::MapLocation{_c.x(), _c.y()};
+  });
+
+  return out;
 }
 
 struct cost_below {

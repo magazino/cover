@@ -49,7 +49,7 @@ cell_vec
 raytrace(const cell& _begin, const cell& _end);
 
 cell_vec
-discretise(const polygon_vec& _outline, double _res);
+discretise(const polygon& _outline, double _res);
 
 struct discrete_footprint {
   cell_vec dense, inscribed;

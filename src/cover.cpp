@@ -201,23 +201,27 @@ raytrace(const point& _begin, const point& _end, double _res) {
 }
 
 cell_vec
-discretise(const polygon_vec& _polygon, double _res) {
-  // return here just the points, since we don't have a polygon
-  if (_polygon.size() < 2)
-    throw std::runtime_error("polygon must contain at least two points");
-
+discretise(const polygon& _polygon, double _res) {
+  const auto size = _polygon.cols();
   cell_vec outline;
+  // return here just the points, since we don't have a polygon
+  if (size < 2) {
+    outline.resize(size);
+    for(size_t ii = 0; ii != size; ++ii)
+      outline[ii] = (_polygon.col(ii) * (1. / _res)).cast<int>();
+    return outline;
+  }
+
   // do the double pointer iteration
-  for (auto l = _polygon.begin(), r = std::next(l); r != _polygon.end();
-       ++l, ++r) {
-    const auto curr_outline = raytrace(*l, *r, _res);
-    outline.insert(outline.end(), curr_outline.begin(), curr_outline.end());
+  for (int ii = 0; ii != size - 1; ++ii) {
+    const auto curr = raytrace(_polygon.col(ii), _polygon.col(ii + 1), _res);
+    outline.insert(outline.end(), curr.begin(), curr.end());
   }
 
   // close the last one
-  if (_polygon.size() > 2) {
-    const auto last_outline = raytrace(_polygon.back(), _polygon.front(), _res);
-    outline.insert(outline.end(), last_outline.begin(), last_outline.end());
+  if (size > 2) {
+    const auto last = raytrace(_polygon.col(size - 1), _polygon.col(0), _res);
+    outline.insert(outline.end(), last.begin(), last.end());
   }
 
   return outline;
