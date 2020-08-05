@@ -201,23 +201,22 @@ raytrace(const point& _begin, const point& _end, double _res) {
 }
 
 cell_vec
-discretise(const polygon_vec& _outline, double _res) {
-  // return here just the points
-  // todo fix this
-  if (_outline.size() < 2)
-    return {};
+discretise(const polygon_vec& _polygon, double _res) {
+  // return here just the points, since we don't have a polygon
+  if (_polygon.size() < 2)
+    throw std::runtime_error("polygon must contain at least two points");
 
-  // do the double pointer iteration
   cell_vec outline;
-  for (auto l = _outline.begin(), r = std::next(l); r != _outline.end();
+  // do the double pointer iteration
+  for (auto l = _polygon.begin(), r = std::next(l); r != _polygon.end();
        ++l, ++r) {
     const auto curr_outline = raytrace(*l, *r, _res);
     outline.insert(outline.end(), curr_outline.begin(), curr_outline.end());
   }
 
   // close the last one
-  if (_outline.size() > 2) {
-    const auto last_outline = raytrace(_outline.back(), _outline.front(), _res);
+  if (_polygon.size() > 2) {
+    const auto last_outline = raytrace(_polygon.back(), _polygon.front(), _res);
     outline.insert(outline.end(), last_outline.begin(), last_outline.end());
   }
 
