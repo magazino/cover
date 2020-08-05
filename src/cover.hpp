@@ -39,4 +39,23 @@ struct footprint {
 footprint
 split(const polygon& _p, const double& _rad);
 
+using cell = Eigen::Vector2i;
+using cell_vec = std::vector<cell>;
+
+cell_vec
+raytrace(const point& _begin, const point& _end, double _res);
+
+cell_vec
+raytrace(const cell& _begin, const cell& _end);
+
+cell_vec
+discretise(const polygon_vec& _outline, double _res);
+
+struct discrete_footprint {
+  cell_vec dense, inscribed;
+};
+
+discrete_footprint
+discretise(const footprint& _fp);
+
 }  // namespace cover

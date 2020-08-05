@@ -151,4 +151,78 @@ split(const polygon& _p, const double& _rad) {
   return to_geos(_p, _rad);
 }
 
+cell_vec
+raytrace(const cell& _begin, const cell& _end) {
+  // adjusted from ros
+  const Eigen::Array2i delta_raw = _end - _begin;
+  const cell delta = delta_raw.abs();
+
+  // auxilary stuff
+  cell::Index max_row;
+  const int den = delta.maxCoeff(&max_row);
+  const int add = delta.minCoeff();
+  const int size = den;
+  int num = den / 2;
+
+  // the minor is zero at max
+  cell inc_minor = delta_raw.sign();
+  inc_minor[max_row] = 0;
+
+  // the minor and major are complementary
+  const cell inc_major = cell::Ones() - inc_minor;
+
+  // the running vars
+  cell curr = _begin;
+  cell_vec ray;
+  ray.reserve(size);
+
+  // mind the smaller sign
+  for (int ii = 0; ii < size; ++ii) {
+    ray.push_back(curr);
+
+    num += add;
+    if (num >= den) {
+      num -= den;
+      curr += inc_minor;
+    }
+    curr += inc_major;
+  }
+
+  return ray;
+}
+
+cell_vec
+raytrace(const point& _begin, const point& _end, double _res) {
+  if (_res <= 0)
+    throw std::runtime_error("resolution must be bigger then zero");
+
+  // convert to a factor instead of a resolution (eigen's specifics)
+  const auto factor = 1. / _res;
+  return raytrace((_begin * factor).cast<int>(), (_end * factor).cast<int>());
+}
+
+cell_vec
+discretise(const polygon_vec& _outline, double _res) {
+  // return here just the points
+  // todo fix this
+  if (_outline.size() < 2)
+    return {};
+
+  // do the double pointer iteration
+  cell_vec outline;
+  for (auto l = _outline.begin(), r = std::next(l); r != _outline.end();
+       ++l, ++r) {
+    const auto curr_outline = raytrace(*l, *r, _res);
+    outline.insert(outline.end(), curr_outline.begin(), curr_outline.end());
+  }
+
+  // close the last one
+  if (_outline.size() > 2) {
+    const auto last_outline = raytrace(_outline.back(), _outline.front(), _res);
+    outline.insert(outline.end(), last_outline.begin(), last_outline.end());
+  }
+
+  return outline;
+}
+
 }  // namespace cover
