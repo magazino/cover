@@ -24,7 +24,7 @@ main(int argc, char** argv) {
     const auto res = split(outline, 1);
     std::cout << res.ring << std::endl;
     std::cout << "dense elements " << std::endl;
-    for(const auto & dense : res.dense)
+    for (const auto& dense : res.dense)
       std::cout << dense << std::endl;
   }
   catch (std::exception& _ex) {

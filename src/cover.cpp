@@ -153,23 +153,22 @@ split(const polygon& _p, const double& _rad) {
 
 cell_vec
 raytrace(const cell& _begin, const cell& _end) {
-  // adjusted from ros
+  // adjusted from ros - speed-up with eigen's magic
   const Eigen::Array2i delta_raw = _end - _begin;
   const cell delta = delta_raw.abs();
 
   // auxilary stuff
-  cell::Index max_row;
+  cell::Index max_row, min_row;
   const int den = delta.maxCoeff(&max_row);
-  const int add = delta.minCoeff();
+  const int add = delta.minCoeff(&min_row);
   const int size = den;
   int num = den / 2;
 
   // the minor is zero at max
   cell inc_minor = delta_raw.sign();
+  cell inc_major = inc_minor;
   inc_minor[max_row] = 0;
-
-  // the minor and major are complementary
-  const cell inc_major = cell::Ones() - inc_minor;
+  inc_major[min_row] = 0;
 
   // the running vars
   cell curr = _begin;
