@@ -53,6 +53,8 @@ within_bounds(const polygon& _p, const point& _min, const point& _max) {
   return true;
 }
 
+
+
 cm_polygon
 dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
   // rotate the polygon to the right pose and make it relative
@@ -65,9 +67,12 @@ dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
   if (!within_bounds(relative, point::Zero(), size))
     throw std::out_of_range("polygon outside of map");
 
-  const auto dense = discretise(relative, _map.getResolution());
+  // create the discrete representation
+  const auto discrete = discretise(relative, _map.getResolution());
+  const auto dense = densify(discrete);
 
   // convert to the costmap format
+  // todo do we need here cm?
   cm_polygon out(dense.size());
   std::transform(dense.begin(), dense.end(), out.begin(), [](const cell& _c) {
     return costmap_2d::MapLocation{_c.x(), _c.y()};

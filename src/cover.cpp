@@ -151,8 +151,30 @@ split(const polygon& _p, const double& _rad) {
   return to_geos(_p, _rad);
 }
 
+double
+_get_factor(const double& _res) {
+  if (_res <= 0)
+    throw std::runtime_error("resolution must be greater then zero");
+  return 1. / _res;
+}
+
 cell_vec
-raytrace(const cell& _begin, const cell& _end) {
+discretise(const polygon& _polygon, double _res) {
+  const auto size = _polygon.cols();
+  cell_vec discrete(size);
+
+  // get the factor - will throw for bad resolution
+  const auto factor = _get_factor(_res);
+
+  // convert the polygon to cells
+  for (int ii = 0; ii != size; ++ii)
+    discrete[ii] = (_polygon.col(ii) * factor).cast<int>();
+
+  return discrete;
+}
+
+cell_vec
+raytrace(const cell& _begin, const cell& _end) noexcept {
   // adjusted from ros - speed-up with eigen's magic
   const Eigen::Array2i delta_raw = _end - _begin;
   const cell delta = delta_raw.abs();
@@ -191,40 +213,26 @@ raytrace(const cell& _begin, const cell& _end) {
 }
 
 cell_vec
-raytrace(const point& _begin, const point& _end, double _res) {
-  if (_res <= 0)
-    throw std::runtime_error("resolution must be bigger then zero");
+densify(const cell_vec& _sparse) noexcept {
+  // trivial case check
+  if (_sparse.size() < 2)
+    return _sparse;
 
-  // convert to a factor instead of a resolution (eigen's specifics)
-  const auto factor = 1. / _res;
-  return raytrace((_begin * factor).cast<int>(), (_end * factor).cast<int>());
-}
-
-cell_vec
-discretise(const polygon& _polygon, double _res) {
-  const auto size = _polygon.cols();
-  cell_vec outline;
-  // return here just the points, since we don't have a polygon
-  if (size < 2) {
-    outline.resize(size);
-    for(size_t ii = 0; ii != size; ++ii)
-      outline[ii] = (_polygon.col(ii) * (1. / _res)).cast<int>();
-    return outline;
-  }
-
+  cell_vec dense;
   // do the double pointer iteration
-  for (int ii = 0; ii != size - 1; ++ii) {
-    const auto curr = raytrace(_polygon.col(ii), _polygon.col(ii + 1), _res);
-    outline.insert(outline.end(), curr.begin(), curr.end());
+  // note: with the check above size cannot underflow
+  for (int ii = 0; ii != _sparse.size() - 1; ++ii) {
+    const auto curr = raytrace(_sparse.at(ii), _sparse.at(ii + 1));
+    dense.insert(dense.end(), curr.begin(), curr.end());
   }
 
   // close the last one
-  if (size > 2) {
-    const auto last = raytrace(_polygon.col(size - 1), _polygon.col(0), _res);
-    outline.insert(outline.end(), last.begin(), last.end());
+  if (_sparse.size() > 2) {
+    const auto last = raytrace(_sparse.back(), _sparse.front());
+    dense.insert(dense.end(), last.begin(), last.end());
   }
 
-  return outline;
+  return dense;
 }
 
 }  // namespace cover
