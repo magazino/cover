@@ -39,4 +39,43 @@ struct footprint {
 footprint
 split(const polygon& _p, const double& _rad);
 
+using cell = Eigen::Vector2i;
+using cell_vec = std::vector<cell>;
+
+cell_vec
+discretise(const polygon& _p, double _res);
+
+// below some machinery to densify the outline
+
+/**
+ * @brief raytraces between [+begin, _end)
+ *
+ * Note: contrary to the ros-implementation _end is not part of the output
+ * array. In this manner, we are closer to the std-style. This makes the
+ * densifying step of a polygon easier, since we don't have duplicates.
+ *
+ * @param _begin inclusive start of the ray
+ * @param _end exclusive end of the ray
+ */
+cell_vec
+raytrace(const cell& _begin, const cell& _end) noexcept;
+
+/**
+ * @brief returns the dense representation of the outline
+ *
+ * Will basically call pair-wise the raytrace function above and stich the
+ * result together.
+ *
+ * @param _sparse polygon of an arbitrary size
+ */
+cell_vec
+densify(const cell_vec& _sparse) noexcept;
+
+struct discrete_footprint {
+  cell_vec dense, inscribed;
+};
+
+discrete_footprint
+discretise(const footprint& _fp);
+
 }  // namespace cover

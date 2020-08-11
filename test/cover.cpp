@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <base_local_planner/footprint_helper.h>
+
 using namespace cover;
 
 struct empty_polygon_fixture : public testing::Test {
@@ -156,4 +158,45 @@ TEST(split, real_life_toru) {
 
   // the inner part must be valid
   EXPECT_NE(res.ring.size(), 0);
+}
+
+// below raytrace tests
+// parameter
+struct raytrace_param {
+  int x0, y0, x1, y1;
+};
+
+// fixture
+struct raytrace_fixture : public testing::TestWithParam<raytrace_param> {};
+
+INSTANTIATE_TEST_CASE_P(/**/, raytrace_fixture,
+                        testing::Values(raytrace_param{0, 0, 100, 30},
+                                        raytrace_param{30, 100, 0, 0},
+                                        raytrace_param{0, 100, 100, 30},
+                                        raytrace_param{10, -11, -10, 30},
+                                        raytrace_param{0, 0, -10, -30},
+                                        raytrace_param{-10, -30, 100, 30},
+                                        raytrace_param{10, -30, -100, 30},
+                                        raytrace_param{0, 2, 2, 2}));
+
+TEST_P(raytrace_fixture, generic) {
+  const auto p = GetParam();
+  base_local_planner::FootprintHelper fh;
+  using blp_vector = std::vector<base_local_planner::Position2DInt>;
+
+  // run the code
+  const auto res = raytrace(cell{p.x0, p.y0}, cell{p.x1, p.y1});
+
+  // we should not be empty
+  ASSERT_FALSE(res.empty());
+
+  // we use the base_local_planner as reference - run them also
+  blp_vector expected;
+  fh.getLineCells(p.x0, p.x1, p.y0, p.y1, expected);
+
+  // now compare the result
+  for (size_t ii = 0; ii != res.size(); ++ii) {
+    ASSERT_EQ(res[ii].x(), expected[ii].x);
+    ASSERT_EQ(res[ii].y(), expected[ii].y);
+  }
 }

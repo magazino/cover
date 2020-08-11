@@ -73,7 +73,9 @@ set(COVER_BENCHMARK "Enable benchmarking" ON)
 if(COVER_BENCHMARK)
   find_package(benchmark)
   if(benchmark_FOUND)
-    add_executable(${PROJECT_NAME}_perf perf/cover.cpp)
+    add_executable(${PROJECT_NAME}_perf
+      perf/cover_ros.cpp
+      perf/cover.cpp)
     target_link_libraries(${PROJECT_NAME}_perf benchmark::benchmark ${PROJECT_NAME}_ros)
     target_include_directories(${PROJECT_NAME}_perf PRIVATE test)
   else()
