@@ -2,6 +2,14 @@
 Changelog for package cover
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.0 (2020-08-14)
+------------------
+* document interfaces
+* use own raytrace function
+* fix missing size-check
+* fix raytrace and add tests
+* add raytrace code
+
 0.1.0 (2020-07-31)
 ------------------
 * fixup missing clang-tidy dependency
