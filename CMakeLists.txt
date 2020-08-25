@@ -5,8 +5,10 @@ set(CATKIN_REQUIRED_PACKAGE base_local_planner costmap_2d roscpp)
 # library targets ros-melodic or newer.
 # set CMAKE_CXX_STANDARD to 11 if compiling otherwise.
 add_compile_options(-Wpedantic -Wall -Wextra)
-set(CMAKE_CXX_CLANG_TIDY
-  "clang-tidy; -checks=*, -clang-analyzer-cplusplus*, -clang-diagnostic-*, -clang-analyzer-*")
+
+# the clang-tidy checks are optional
+# set(CMAKE_CXX_CLANG_TIDY
+#  "clang-tidy; -checks=*, -clang-analyzer-cplusplus*, -clang-diagnostic-*, -clang-analyzer-*")
 
 
 find_package(catkin REQUIRED COMPONENTS ${CATKIN_REQUIRED_PACKAGE})
