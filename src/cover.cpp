@@ -31,6 +31,7 @@ namespace gg = geos::geom;
 
 // define easier access to the main classes
 using gg::CoordinateSequence;
+using gg::CoordinateArraySequence;
 using gg::Geometry;
 using gg::LinearRing;
 using gg::Polygon;
@@ -40,8 +41,7 @@ MAKE_UNIQUE_PTR(Geometry);
 MAKE_UNIQUE_PTR(LinearRing);
 MAKE_UNIQUE_PTR(Polygon);
 MAKE_UNIQUE_PTR(CoordinateSequence);
-// something special...
-using GeometryVecPtr = std::unique_ptr<Geometry::NonConstVect>;
+MAKE_UNIQUE_PTR(CoordinateArraySequence);
 
 polygon
 to_eigen(const gg::CoordinateSequence& _s) noexcept {
@@ -87,7 +87,7 @@ to_geos(const polygon& _p, double _d) {
   COVER_INFO("setting up geometry...");
 
   // convert to CoordinateSequence
-  CoordinateSequencePtr sequence(new gg::CoordinateArraySequence());
+  CoordinateArraySequencePtr sequence(new gg::CoordinateArraySequence());
   for (int cc = 0; cc != _p.cols(); ++cc)
     sequence->add(gg::Coordinate{_p(0, cc), _p(1, cc)});
 
@@ -102,10 +102,9 @@ to_geos(const polygon& _p, double _d) {
   // linear ring will take the ownership now
   // throws if invalid
   LinearRingPtr ring{factory->createLinearRing(sequence.release())};
-  GeometryVecPtr holes{new gg::Geometry::NonConstVect()};
 
   // polygon takes ownership of everything
-  PolygonPtr poly(factory->createPolygon(ring.release(), holes.release()));
+  PolygonPtr poly(factory->createPolygon(ring.release(), nullptr));
 
   if (!poly->isValid())
     throw std::runtime_error("failed to construct a valid polygon");
@@ -132,6 +131,10 @@ to_geos(const polygon& _p, double _d) {
   out.ring = to_eigen(*eroded->getCoordinates());
   out.dense.reserve(polygons.size());
   for (const auto& polygon_ptr : polygons) {
+    // newer versions of geos append an empty polygon
+    if(polygon_ptr->isEmpty())
+      continue;
+
     out.dense.emplace_back(to_eigen(*polygon_ptr));
 
     // check the polygon quality
