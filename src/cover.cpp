@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <numeric>
 
 constexpr char mod_name[] = "cover: ";
 
@@ -236,7 +237,7 @@ densify(const discrete_polygon& _sparse) noexcept {
 
   // now allocate enough memory dense and densify
   // the last element of rs is the final number of dense-points
-  discrete_polygon dense(2, rs.back());
+  discrete_polygon dense(2, std::accumulate(rs.begin(), rs.end(), 0));
 
   // double pointer iteration to get the ray
   // note: with the check above sparse_cols cannot be negative
@@ -259,7 +260,6 @@ densify(const discrete_polygon& _sparse) noexcept {
 discrete_footprint
 discretise(const footprint& _fp) {
   discrete_footprint discrete;
-  // discrete.inscribed =
 }
 
 discrete_footprint
