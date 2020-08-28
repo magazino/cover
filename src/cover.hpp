@@ -1,10 +1,14 @@
 #pragma once
 
-#include <Eigen/Core>
+#include <Eigen/Dense>
 
 #include <vector>
 
 namespace cover {
+
+////////////////////////////////////////////////////////////////////////////////
+// CONTINUOUS-METHODS
+////////////////////////////////////////////////////////////////////////////////
 
 // below our interface format
 using point = Eigen::Vector2d;
@@ -39,8 +43,13 @@ struct footprint {
 footprint
 split(const polygon& _p, const double& _rad);
 
+////////////////////////////////////////////////////////////////////////////////
+// DISCRETE-METHODS
+////////////////////////////////////////////////////////////////////////////////
+
 using cell = Eigen::Vector2i;
-using cell_vec = std::vector<cell>;
+using discrete_polygon = Eigen::Matrix<int, 2ul, Eigen::Dynamic>;
+using discrete_polygon_vec = std::vector<discrete_polygon>;
 
 /**
  * @brief converts every metric point of input to a cell.
@@ -50,7 +59,7 @@ using cell_vec = std::vector<cell>;
  * @param _p a metric polygon
  * @param _res the resolution (size of a cell)
  */
-cell_vec
+discrete_polygon
 discretise(const polygon& _p, double _res);
 
 // below some machinery to densify the outline
@@ -65,7 +74,7 @@ discretise(const polygon& _p, double _res);
  * @param _begin inclusive start of the ray
  * @param _end exclusive end of the ray
  */
-cell_vec
+discrete_polygon
 raytrace(const cell& _begin, const cell& _end) noexcept;
 
 /**
@@ -76,14 +85,24 @@ raytrace(const cell& _begin, const cell& _end) noexcept;
  *
  * @param _sparse polygon of an arbitrary size
  */
-cell_vec
-densify(const cell_vec& _sparse) noexcept;
+discrete_polygon
+densify(const discrete_polygon& _sparse) noexcept;
 
 struct discrete_footprint {
-  cell_vec dense, inscribed;
+  discrete_polygon_vec dense;
+  discrete_polygon ring;
 };
 
+/// @brief se2 pose [x, y, theta].T
+using se2 = Eigen::Vector3d;
+
+inline Eigen::Affine2d
+to_affine(const se2& _pose) noexcept {
+  return Eigen::Translation2d(_pose.segment(0, 2)) *
+         Eigen::Rotation2Dd(_pose.z());
+}
+
 discrete_footprint
-discretise(const footprint& _fp);
+discretise(const footprint& _fp, const se2& _pose);
 
 }  // namespace cover

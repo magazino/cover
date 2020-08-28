@@ -35,12 +35,6 @@ using cm_location = costmap_2d::MapLocation;
 using cm_polygon = std::vector<cm_location>;
 using cm_map = costmap_2d::Costmap2D;
 
-inline Eigen::Affine2d
-to_affine(const se2& _pose) noexcept {
-  return Eigen::Translation2d(_pose.segment(0, 2)) *
-         Eigen::Rotation2Dd(_pose.z());
-}
-
 bool
 within_bounds(const polygon& _p, const point& _min, const point& _max) {
   // check lower
@@ -52,8 +46,6 @@ within_bounds(const polygon& _p, const point& _min, const point& _max) {
     return false;
   return true;
 }
-
-
 
 cm_polygon
 dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
@@ -73,10 +65,9 @@ dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
 
   // convert to the costmap format
   // todo do we need here cm?
-  cm_polygon out(dense.size());
-  std::transform(dense.begin(), dense.end(), out.begin(), [](const cell& _c) {
-    return costmap_2d::MapLocation{_c.x(), _c.y()};
-  });
+  cm_polygon out(dense.cols());
+  for(int ii = 0; ii != dense.cols(); ++ii)
+    out[ii] = costmap_2d::MapLocation{dense(0, ii), dense(1, ii)};
 
   return out;
 }
