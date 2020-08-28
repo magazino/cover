@@ -42,6 +42,14 @@ split(const polygon& _p, const double& _rad);
 using cell = Eigen::Vector2i;
 using cell_vec = std::vector<cell>;
 
+/**
+ * @brief converts every metric point of input to a cell.
+ *
+ * Note: size of the output will be the size of the input parameter _p
+ *
+ * @param _p a metric polygon
+ * @param _res the resolution (size of a cell)
+ */
 cell_vec
 discretise(const polygon& _p, double _res);
 
