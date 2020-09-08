@@ -188,15 +188,17 @@ TEST_P(raytrace_fixture, generic) {
   const auto res = raytrace(cell{p.x0, p.y0}, cell{p.x1, p.y1});
 
   // we should not be empty
-  ASSERT_FALSE(res.empty());
+  ASSERT_NE(res.cols(), 0);
 
   // we use the base_local_planner as reference - run them also
   blp_vector expected;
   fh.getLineCells(p.x0, p.x1, p.y0, p.y1, expected);
 
+  ASSERT_EQ(res.cols(), expected.size() - 1);
+
   // now compare the result
-  for (size_t ii = 0; ii != res.size(); ++ii) {
-    ASSERT_EQ(res[ii].x(), expected[ii].x);
-    ASSERT_EQ(res[ii].y(), expected[ii].y);
+  for (int ii = 0; ii != res.cols(); ++ii) {
+    ASSERT_EQ(res.col(ii).x(), expected[ii].x);
+    ASSERT_EQ(res.col(ii).y(), expected[ii].y);
   }
 }

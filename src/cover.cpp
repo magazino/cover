@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <numeric>
 
 constexpr char mod_name[] = "cover: ";
 
@@ -30,8 +31,8 @@ namespace cover {
 namespace gg = geos::geom;
 
 // define easier access to the main classes
-using gg::CoordinateSequence;
 using gg::CoordinateArraySequence;
+using gg::CoordinateSequence;
 using gg::Geometry;
 using gg::LinearRing;
 using gg::Polygon;
@@ -132,7 +133,7 @@ to_geos(const polygon& _p, double _d) {
   out.dense.reserve(polygons.size());
   for (const auto& polygon_ptr : polygons) {
     // newer versions of geos append an empty polygon
-    if(polygon_ptr->isEmpty())
+    if (polygon_ptr->isEmpty())
       continue;
 
     out.dense.emplace_back(to_eigen(*polygon_ptr));
@@ -161,22 +162,16 @@ _get_factor(const double& _res) {
   return 1. / _res;
 }
 
-cell_vec
+discrete_polygon
 discretise(const polygon& _polygon, double _res) {
-  const auto size = _polygon.cols();
-  cell_vec discrete(size);
-
   // get the factor - will throw for bad resolution
   const auto factor = _get_factor(_res);
 
   // convert the polygon to cells
-  for (int ii = 0; ii != size; ++ii)
-    discrete[ii] = (_polygon.col(ii) * factor).cast<int>();
-
-  return discrete;
+  return (_polygon * factor).cast<int>();
 }
 
-cell_vec
+discrete_polygon
 raytrace(const cell& _begin, const cell& _end) noexcept {
   // adjusted from ros - speed-up with eigen's magic
   const Eigen::Array2i delta_raw = _end - _begin;
@@ -197,12 +192,11 @@ raytrace(const cell& _begin, const cell& _end) noexcept {
 
   // the running vars
   cell curr = _begin;
-  cell_vec ray;
-  ray.reserve(size);
+  discrete_polygon ray(2, size);
 
   // mind the smaller sign
   for (int ii = 0; ii < size; ++ii) {
-    ray.push_back(curr);
+    ray.col(ii) = curr;
 
     num += add;
     if (num >= den) {
@@ -215,27 +209,71 @@ raytrace(const cell& _begin, const cell& _end) noexcept {
   return ray;
 }
 
-cell_vec
-densify(const cell_vec& _sparse) noexcept {
+inline int
+ray_size(const cell& _begin, const cell& _end) noexcept {
+  return (_end - _begin).array().abs().maxCoeff();
+}
+
+discrete_polygon
+densify(const discrete_polygon& _sparse) noexcept {
+  const auto sparse_cols = _sparse.cols();
+
   // trivial case check
-  if (_sparse.size() < 2)
+  if (sparse_cols < 2)
     return _sparse;
 
-  cell_vec dense;
-  // do the double pointer iteration
-  // note: with the check above size cannot underflow
-  for (int ii = 0; ii != _sparse.size() - 1; ++ii) {
-    const auto curr = raytrace(_sparse.at(ii), _sparse.at(ii + 1));
-    dense.insert(dense.end(), curr.begin(), curr.end());
+  // first calculate the final size of the array
+  // allocate memory for the ray_sizes (rs)
+  std::vector<int> rs(sparse_cols, 0);
+
+  // double pointer iteration to get the size of every ray
+  // note: with the check above sparse_cols cannot be negative
+  for (int ii = 0; ii != sparse_cols - 1; ++ii)
+    rs[ii] = ray_size(_sparse.col(ii), _sparse.col(ii + 1));
+
+  // add the last one
+  if (sparse_cols > 2)
+    rs.back() = ray_size(_sparse.col(sparse_cols - 1), _sparse.col(0));
+
+  // now allocate enough memory dense and densify
+  // the last element of rs is the final number of dense-points
+  discrete_polygon dense(2, std::accumulate(rs.begin(), rs.end(), 0));
+
+  // double pointer iteration to get the ray
+  // note: with the check above sparse_cols cannot be negative
+  int start_col = 0;
+  for (int ii = 0; ii != sparse_cols - 1; ++ii) {
+    dense.block(0, start_col, 2, rs[ii]) =
+        raytrace(_sparse.col(ii), _sparse.col(ii + 1));
+    start_col += rs[ii];
   }
 
   // close the last one
-  if (_sparse.size() > 2) {
-    const auto last = raytrace(_sparse.back(), _sparse.front());
-    dense.insert(dense.end(), last.begin(), last.end());
+  if (sparse_cols > 2) {
+    dense.block(0, start_col, 2, rs.back()) =
+        raytrace(_sparse.col(sparse_cols - 1), _sparse.col(0));
   }
 
   return dense;
+}
+
+discrete_footprint
+discretise(const footprint& _fp) {
+  discrete_footprint discrete;
+}
+
+discrete_footprint
+discretise(const footprint& _fp, const se2& _pose) {
+  // convert the _pose to a affine
+  const Eigen::Affine2d affine = to_affine(_pose);
+
+  footprint transformed;
+  transformed.ring = affine * _fp.ring;
+  transformed.dense.reserve(_fp.dense.size());
+  for (const auto& dense : _fp.dense)
+    transformed.dense.emplace_back(affine * dense);
+
+  return discretise(transformed);
 }
 
 }  // namespace cover

@@ -7,9 +7,6 @@
 
 namespace cover {
 
-/// @brief se2 pose [x, y, theta].T
-using se2 = Eigen::Vector3d;
-
 /**
  * @brief splits the polygon into dense areas and the inscribed ring.
  *
