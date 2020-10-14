@@ -2,6 +2,15 @@
 Changelog for package cover
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2020-10-14)
+------------------
+* fix bug
+* use discrete_polygon
+* update documentation
+* disable clang-tidy by default
+* fix tests
+* port to noetic
+
 0.2.0 (2020-08-14)
 ------------------
 * document interfaces
