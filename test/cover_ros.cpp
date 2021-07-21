@@ -76,13 +76,14 @@ struct check_area_fixture
 
 // we will use a triangle, rectangle and a weird shape
 // additionally we will rotate the shapes slightly
+const auto values = testing::Combine(
+    testing::Values(d_vector{1, -1, -1, 0, 1, -1},
+                    d_vector{1, 1, -1, -1, -1, 1, 1, -1},
+                    d_vector{1, 1, 0, -1, -1, -1, 1, 0.5, 1, -1}),
+    testing::Values(-2., -1., 0., 1., 2.));
+
 INSTANTIATE_TEST_CASE_P(
-    /**/, check_area_fixture,
-    testing::Combine(testing::Values(d_vector{1, -1, -1, 0, 1, -1},
-                                     d_vector{1, 1, -1, -1, -1, 1, 1, -1},
-                                     d_vector{1, 1, 0, -1, -1, -1, 1, 0.5, 1,
-                                              -1}),
-                     testing::Values(-2., -1., 0., 1., 2.)));
+    /**/, check_area_fixture, values);
 
 TEST_P(check_area_fixture, generic) {
   se2 center{0, 0, yaw};
@@ -139,4 +140,113 @@ TEST(check_area, unit_circle) {
     map.setCost(c.x, c.y, 0);
 
   EXPECT_TRUE(check_area(map, circle, center));
+}
+
+struct fill_area_fixture : public check_area_fixture {
+  using pos_t = base_local_planner::Position2DInt;
+  using pos_vec_t = std::vector<pos_t>;
+
+  fill_area_fixture() : check_area_fixture() {}
+
+  /**
+   * @brief Computes the fill cells using base local planner
+   *
+   * @param _polygon The outer polygon representing the footprint
+   * @return pos_vec_t Fill cells computed by base local planner
+   */
+  pos_vec_t
+  compute_blp_cells(const discrete_polygon& _polygon) {
+    const auto n = static_cast<size_t>(_polygon.cols() + 1);
+    pos_vec_t fp(n);
+
+    // Copy over the data
+    for (size_t idx = 0; idx < n - 1; ++idx) {
+      fp[idx].x = _polygon(0, idx);
+      fp[idx].y = _polygon(1, idx);
+    }
+    // Manually close the footprint as it is required for getFillCells
+    fp.back().x = _polygon(0, 0);
+    fp.back().y = _polygon(1, 0);
+
+    fh.getFillCells(fp);
+
+    return fp;
+  }
+
+  /**
+   * @brief Coverts discrete polygon to vector
+   *
+   * @param _polygon Underlying polygon
+   * @return pos_vec_t Polygon converted to vector
+   */
+  static pos_vec_t
+  to_pos_vec(const discrete_polygon& _polygon) {
+    const auto n_cells = static_cast<size_t>(_polygon.cols());
+
+    pos_vec_t cells(n_cells);
+    for (size_t idx = 0; idx < n_cells; ++idx) {
+      cells[idx].x = _polygon(0, idx);
+      cells[idx].y = _polygon(1, idx);
+    }
+
+    return cells;
+  }
+
+  static bool
+  compare_points(const pos_t& _pt0, const pos_t& _pt1) {
+    if (_pt0.x != _pt1.x) {
+      return _pt0.x < _pt1.x;
+    }
+    return _pt0.y < _pt1.y;
+  }
+
+  static bool
+  are_points_equal(const pos_t& _pt0, const pos_t& _pt1) {
+    return (_pt0.x == _pt1.x) && (_pt0.y == _pt1.y);
+  }
+
+  /**
+   * @brief Sorts and removes duplicate points from the vector in-place
+   *
+   * @param _vec 2D points containing the cell coordinates
+   */
+  static void
+  uniquify(pos_vec_t& _vec) {
+    std::sort(_vec.begin(), _vec.end(), compare_points);
+    _vec.erase(std::unique(_vec.begin(), _vec.end()), _vec.end());
+  }
+};
+
+INSTANTIATE_TEST_CASE_P(
+    /**/, fill_area_fixture, values);
+
+/**
+ * @brief We check whether the area function of cover library returns the
+ same
+ * cells as the base_local_planner counterpart
+ */
+TEST_P(fill_area_fixture, area_cells) {
+  // Compute the discretized footprint
+  auto disc_fp = dense_outline(p, map.getResolution());
+  disc_fp.colwise() -= disc_fp.rowwise().minCoeff();
+
+  // Compute the fill cells using cover library
+  auto cover_cells = to_pos_vec(area(disc_fp));
+  uniquify(cover_cells);
+
+  // Similarly, compute the cells using base local planner
+  auto blp_cells = compute_blp_cells(disc_fp);
+  uniquify(blp_cells);
+
+  // Finally check if the results are the same
+  EXPECT_EQ(cover_cells.size(), blp_cells.size());
+
+  // We can do this comparison as we sorted the points while removing duplicates
+  size_t n_mismatches = 0;
+  for (size_t idx = 0; idx < cover_cells.size(); ++idx) {
+    // Add to counter if points are not equal
+    n_mismatches += !are_points_equal(cover_cells[idx], blp_cells[idx]);
+  }
+
+  EXPECT_EQ(n_mismatches, 0);
 }

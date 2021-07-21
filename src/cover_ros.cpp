@@ -66,8 +66,9 @@ dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
   // convert to the costmap format
   // todo do we need here cm?
   cm_polygon out(dense.cols());
-  for(int ii = 0; ii != dense.cols(); ++ii)
-    out[ii] = costmap_2d::MapLocation{dense(0, ii), dense(1, ii)};
+  for (int ii = 0; ii != dense.cols(); ++ii)
+    out[ii] = costmap_2d::MapLocation{static_cast<unsigned int>(dense(0, ii)),
+                                      static_cast<unsigned int>(dense(1, ii))};
 
   return out;
 }

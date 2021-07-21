@@ -57,4 +57,30 @@ bool
 check_pose(costmap_2d::Costmap2D& _map, const footprint& _footprint,
            const se2& _pose, check_type _type) noexcept;
 
+/**
+ * @brief A throwing version of check_discrete_pose.
+ * @copydetails check_discrete_pose
+ * @throw std::runtime_error, if the footprint is not fully inside of the
+ * costmap.
+ */
+bool
+check_discrete_pose_throw(const costmap_2d::Costmap2D& _map,
+                          const discrete_footprint& _footprint,
+                          const Eigen::Vector2i _origin, check_type _type);
+
+/**
+ * @brief Checks if the discrete footprint translated to the _origin is free.
+ *
+ * @param _map The costmap.
+ * @param _footprint The (oriented and) descrete footprint.
+ * @param _origin The origin of the footprint within the costmap.
+ * @param _type The type of checks to perform.
+ *
+ * @return true, if the footprint is free and fully within the costmap.
+ */
+bool
+check_discrete_pose(const costmap_2d::Costmap2D& _map,
+                    const discrete_footprint& _footprint,
+                    const Eigen::Vector2i _origin, check_type _type);
+
 }  // namespace cover

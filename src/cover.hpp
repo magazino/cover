@@ -88,6 +88,23 @@ raytrace(const cell& _begin, const cell& _end) noexcept;
 discrete_polygon
 densify(const discrete_polygon& _sparse) noexcept;
 
+/**
+ * @brief Generates a dense outline of the given polygon.
+ *
+ * @param _p The polygon.
+ * @param _res The resolution.
+ */
+discrete_polygon
+dense_outline(const polygon& _p, double _res);
+
+/**
+ * @brief Creates an area from the outline.
+ *
+ * @param _outline A closed outline.
+ */
+discrete_polygon
+area(const discrete_polygon& _outline);
+
 struct discrete_footprint {
   discrete_polygon_vec dense;
   discrete_polygon ring;

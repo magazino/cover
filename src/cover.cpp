@@ -10,11 +10,13 @@
 
 #include <ros/console.h>
 
+#include <cmath>
 #include <memory>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <numeric>
+#include <unordered_map>
 
 constexpr char mod_name[] = "cover: ";
 
@@ -188,6 +190,12 @@ raytrace(const cell& _begin, const cell& _end) noexcept {
   cell inc_minor = delta_raw.sign();
   cell inc_major = inc_minor;
   inc_minor[max_row] = 0;
+
+  // Corner case where both are equal, we need to manually flip the axis
+  if (min_row == max_row) {
+    // Works as we have 2 axis. Change axis from 0 -> 1 or 1 -> 0
+    min_row = !min_row;
+  }
   inc_major[min_row] = 0;
 
   // the running vars
@@ -257,23 +265,170 @@ densify(const discrete_polygon& _sparse) noexcept {
   return dense;
 }
 
-discrete_footprint
-discretise(const footprint& _fp) {
-  discrete_footprint discrete;
+discrete_polygon
+dense_outline(const polygon& _p, double _res) {
+  const discrete_polygon discrete = discretise(_p, _res);
+  return densify(discrete);
+}
+
+inline int
+signed_y_diff(const cell& _l, const cell& _r) noexcept {
+  // note: the variables in cm_locations are unsigned, so we need the cast
+  return _l.y() - _r.y();
+}
+
+inline bool
+is_cusp(const cell& _l, const cell& _m, const cell& _r) noexcept {
+  return signed_y_diff(_l, _m) * signed_y_diff(_m, _r) < 0;
+}
+
+discrete_polygon
+area(const discrete_polygon& _outline) {
+  // Now we do a sort-free line-fill-algorithm for area checking.
+  // We don't sort by y-values, but just throw them into a hash-map.
+  // algorithm has 2 steps:
+  // 1 - Generate the scan_line; (y-lines) of cooridnate pairs
+  // 2 - Check pairwise the values
+  using x_list = std::vector<int>;
+  using y_hash = std::unordered_map<int, x_list>;
+
+  y_hash scan_line;
+
+  // Better safe than sorry
+  if (_outline.cols() < 3)
+    throw std::out_of_range("Invalid size");
+
+  const auto n_pts = static_cast<size_t>(_outline.cols());
+
+  // Below step 1: Generate the scan_line structure.
+  // We have to be extra-careful at the ends, since the outline is a closed
+  // polygon. here we check the first element
+
+  // Find the end point where y changes
+  size_t end = n_pts - 1;
+  while (end != 0 && _outline(1, end) == _outline(1, 0)) {
+    --end;
+  }
+
+  // Similarly, find the start point where y chanegs
+  size_t start = 0;
+  while (start != end && _outline(1, start) == _outline(1, 0)) {
+    ++start;
+  }
+
+  // Return base cells if no area is defined
+  if (start >= end) {
+    return _outline;
+  }
+
+  // Add to the scan line if the current point is not a cusp
+  if (!is_cusp(_outline.col(end), _outline.col(0), _outline.col(start))) {
+    // We create a mapping of y-coordinates to multiple x-coordinates
+    scan_line[_outline(1, 0)].push_back(_outline(0, 0));
+  }
+
+  // Use a two pointer iteration to add 'non-horizontal' elements to the scan
+  // line in [start, end)
+  for (size_t prev = 0, curr = start; curr != end;) {
+    auto next = curr + 1;
+    // Skip the horizontal part...
+    while (next != end && _outline(1, curr) == _outline(1, next)) {
+      ++curr;
+      ++next;
+    }
+
+    // Skips cusps in y-direction...
+    if (!is_cusp(_outline.col(prev), _outline.col(curr), _outline.col(next))) {
+      // Add the x-coordinate of the curr point to the y-hashmap
+      scan_line[_outline(1, curr)].push_back(_outline(0, curr));
+    }
+
+    // update the variables
+    prev = curr;
+    curr = next;
+  }
+
+  // Check end - here we short-cut the algorithm and just check if the final
+  // scan_line has odd number of elements
+  {
+    const auto& end_pt = _outline.col(end);
+
+    if (!scan_line[end_pt.y()].empty() && scan_line[end_pt.y()].size() % 2 == 1)
+      scan_line[end_pt.y()].push_back(end_pt.x());
+  }
+
+  // Size computation for number of area cells
+  size_t n_cells = static_cast<size_t>(_outline.cols());
+
+  // Accumulate the inner cells size
+  for (const auto& line_pairs : scan_line) {
+    // Contains the list of x coordinates
+    const auto& x_line = line_pairs.second;
+
+    // sanity check if we are good to go
+    if (x_line.size() % 2 != 0)
+      throw std::logic_error("line-scan algorithm failed");
+
+    for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
+      // Can happen if 2 points of the polygon got discretized to the same cell
+      const auto diff = std::abs(*itt - *(itt + 1));
+      n_cells += static_cast<size_t>(std::max(diff - 1, 0));
+    }
+  }
+
+  // Below step 2: now check for every y line the x-pairs
+  discrete_polygon area(2, n_cells);
+
+  // Block copy the outline
+  area.block(0, 0, 2, n_pts) = _outline;
+
+  // Counter to determine how many points we have already added to the area
+  size_t counter = n_pts;
+
+  for (const auto& line_pairs : scan_line) {
+    // Contains the list of x coordinates
+    const auto curr_y = line_pairs.first;
+    const auto& x_line = line_pairs.second;
+
+    // Go over line pairs and fill in the inner cells
+    for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
+      auto curr_x = *itt;
+      const auto end_x = *(itt + 1);
+      const auto dx = end_x > curr_x ? 1 : -1;
+
+      // Can happen if 2 points of the polygon got discretized to the same cell
+      if (curr_x == end_x) {
+        continue;
+      }
+
+      // Skip first point as we already added it above
+      curr_x += dx;
+
+      while (curr_x != end_x) {
+        area.col(counter++) = cell{curr_x, curr_y};
+        curr_x += dx;
+      }
+    }
+  }
+  return area;
+}
+
+discrete_polygon
+discretise_area(const polygon& _p, double _res) {
+  // get the dense outline of the polygon
+  const discrete_polygon outline = dense_outline(_p, _res);
+  return area(outline);
 }
 
 discrete_footprint
-discretise(const footprint& _fp, const se2& _pose) {
-  // convert the _pose to a affine
-  const Eigen::Affine2d affine = to_affine(_pose);
+discretise(const footprint& _fp, double _res) {
+  discrete_footprint discrete;
+  discrete.ring = dense_outline(_fp.ring, _res);
+  discrete.dense.reserve(_fp.dense.size());
+  for (const auto& area : _fp.dense)
+    discrete.dense.emplace_back(discretise_area(area, _res));
 
-  footprint transformed;
-  transformed.ring = affine * _fp.ring;
-  transformed.dense.reserve(_fp.dense.size());
-  for (const auto& dense : _fp.dense)
-    transformed.dense.emplace_back(affine * dense);
-
-  return discretise(transformed);
+  return discrete;
 }
 
 }  // namespace cover

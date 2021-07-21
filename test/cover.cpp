@@ -171,6 +171,7 @@ struct raytrace_fixture : public testing::TestWithParam<raytrace_param> {};
 
 INSTANTIATE_TEST_CASE_P(/**/, raytrace_fixture,
                         testing::Values(raytrace_param{0, 0, 100, 30},
+                                        raytrace_param{0, 0, 100, 100},
                                         raytrace_param{30, 100, 0, 0},
                                         raytrace_param{0, 100, 100, 30},
                                         raytrace_param{10, -11, -10, 30},
