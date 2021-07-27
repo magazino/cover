@@ -1,13 +1,39 @@
 #pragma once
 
+// --- Internal Includes ---
 #include <cover_ros.hpp>
 
+// --- ROS Includes ---
 #include <geometry_msgs/Point.h>
 
+// --- Standard Includes ---
 #include <cmath>
 #include <vector>
 
 namespace cover {
+
+/**
+ * @brief Given a linearized vector of doubles which contains all x-coordinates
+ * followed by y-coordinates, constructs an Eigen counter-part of it
+ *
+ * @param coordinates Vector of doubles containing x-coordinates followed by
+ * y-coordinates
+ * @return polygon The polygon(footprint) as Eigen matrix
+ */
+static polygon
+make_footprint(std::vector<double> _coordinates) {
+  // We define a custom type here as Eigen by default uses column major storage.
+  // This is also what the cover library uses. To copy the data over properly,
+  // we must transpose the matrix as _coordinates contains all x-values followed
+  // by all y-values and not x-y pairs
+  using polygon_tranpose_t =
+      Eigen::Matrix<polygon::Scalar, polygon::ColsAtCompileTime,
+                    polygon::RowsAtCompileTime>;
+
+  return Eigen::Map<polygon_tranpose_t>(_coordinates.data(),
+                                        _coordinates.size() / 2, 2)
+      .transpose();
+}
 
 static polygon
 make_circle(size_t _s, double _radius) noexcept {

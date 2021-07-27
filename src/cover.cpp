@@ -357,6 +357,11 @@ area(const discrete_polygon& _outline) {
       scan_line[end_pt.y()].push_back(end_pt.x());
   }
 
+  // Now, sort the x-line pairs to account for non-convex shapes
+  std::for_each(scan_line.begin(), scan_line.end(), [](auto& line_pairs) {
+    std::sort(line_pairs.second.begin(), line_pairs.second.end());
+  });
+
   // Size computation for number of area cells
   size_t n_cells = static_cast<size_t>(_outline.cols());
 
@@ -394,7 +399,6 @@ area(const discrete_polygon& _outline) {
     for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
       auto curr_x = *itt;
       const auto end_x = *(itt + 1);
-      const auto dx = end_x > curr_x ? 1 : -1;
 
       // Can happen if 2 points of the polygon got discretized to the same cell
       if (curr_x == end_x) {
@@ -402,11 +406,11 @@ area(const discrete_polygon& _outline) {
       }
 
       // Skip first point as we already added it above
-      curr_x += dx;
+      ++curr_x;
 
       while (curr_x != end_x) {
         area.col(counter++) = cell{curr_x, curr_y};
-        curr_x += dx;
+        ++curr_x;
       }
     }
   }

@@ -57,13 +57,15 @@ install(FILES src/cover.hpp src/cover_ros.hpp
 #############
 
 if(CATKIN_ENABLE_TESTING)
+  find_package(OpenCV REQUIRED)
+
   catkin_add_gtest(${PROJECT_NAME}_test
     test/cover.cpp
     test/cover_ros.cpp)
 
-  target_include_directories(${PROJECT_NAME}_test PUBLIC src)
+  target_include_directories(${PROJECT_NAME}_test PUBLIC src ${OpenCV_INCLUDE_DIRS})
   if (TARGET ${PROJECT_NAME}_test)
-    target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_ros gtest_main)
+    target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_ros gtest_main ${OpenCV_LIBRARIES})
   endif()
 endif()
 

@@ -17,4 +17,6 @@
     <!-- only for testing -->
     <depend>base_local_planner</depend>
     <depend>libgeos++-dev</depend>
+    
+    <test_depend>libopencv-dev</test_depend>
 </package>
