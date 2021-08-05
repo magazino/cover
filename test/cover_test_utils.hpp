@@ -20,7 +20,7 @@ namespace cover {
  * y-coordinates
  * @return polygon The polygon(footprint) as Eigen matrix
  */
-static polygon
+inline polygon
 make_footprint(std::vector<double> _coordinates) {
   // We define a custom type here as Eigen by default uses column major storage.
   // This is also what the cover library uses. To copy the data over properly,
