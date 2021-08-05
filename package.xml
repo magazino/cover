@@ -6,6 +6,8 @@
     </description>
 
     <maintainer email="dorezyuk@magazino.eu">Dima Dorezyuk</maintainer>
+    <maintainer email="sattar@magazino.eu">Muhammad Hamza Sattar</maintainer>
+    <maintainer email="kuemmerle@magazino.eu">Rainer Kuemmerle</maintainer>
 
     <license>Magazino GmbH</license>
 
@@ -14,9 +16,9 @@
 
     <depend>costmap_2d</depend>
     <depend>roscpp</depend>
+    <depend>libgeos++-dev</depend>
     <!-- only for testing -->
     <depend>base_local_planner</depend>
-    <depend>libgeos++-dev</depend>
     
     <test_depend>libopencv-dev</test_depend>
 </package>
