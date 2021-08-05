@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.1)
+cmake_minimum_required(VERSION 3.0.0)
 project(cover)
 
 set(CATKIN_REQUIRED_PACKAGE base_local_planner costmap_2d roscpp)
@@ -25,7 +25,7 @@ catkin_package(
 # barebone lib
 add_library(${PROJECT_NAME} src/cover.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC src)
-target_include_directories(${PROJECT_NAME} PUBLIC SYSTEM
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${GEOS_INCLUDE_DIRS})
@@ -33,7 +33,8 @@ target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${GEOS_LIBRARIES})
 
 # ros-interface lib
 add_library(${PROJECT_NAME}_ros src/cover_ros.cpp)
-target_link_libraries(${PROJECT_NAME}_ros ${PROJECT_NAME})
+target_include_directories(${PROJECT_NAME}_ros PUBLIC src)
+target_link_libraries(${PROJECT_NAME}_ros ${PROJECT_NAME} ${catkin_LIBRARIES})
 
 # test node
 # todo remove this node
