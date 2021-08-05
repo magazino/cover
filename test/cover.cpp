@@ -449,6 +449,8 @@ struct fill_non_convex_area_fixture : public fill_area_fixture {
 
 const auto non_convex_footprints = testing::Values(
     d_vector{-2.5, -1, 1, 2.5, 1, -1, 1, -0.5, 1.5, -1, 0.5, -1.5},  // S-Shape
+    d_vector{-2, -2, -1, -1, 1, 1, 2, 2, 2, -2, -2, -1, -1, -2, -2,
+             2},  // Closed W-Shape with flat interior cusp
     d_vector{2,  2, 0, -2, -2, -1.5, -1.5, 0,    1.5, 1.5,
              -2, 2, 0, 2,  -2, -2,   1,    -0.5, 1,   -2},  // M-Shape
     d_vector{0,   0.05, 0,    -0.2, 0,    0.5, 0,    -1.3, 0,    3.4,
@@ -460,7 +462,7 @@ const auto non_convex_footprints = testing::Values(
 
 INSTANTIATE_TEST_CASE_P(
     /**/, fill_non_convex_area_fixture,
-    testing::Combine(simple_footprints, resolutions));
+    testing::Combine(non_convex_footprints, resolutions));
 
 TEST_P(fill_non_convex_area_fixture, non_convex_area_cells) {
   // Compute the discretized footprint

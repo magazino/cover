@@ -10,12 +10,14 @@
 
 #include <ros/console.h>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 
 constexpr char mod_name[] = "cover: ";
@@ -38,6 +40,8 @@ using gg::CoordinateSequence;
 using gg::Geometry;
 using gg::LinearRing;
 using gg::Polygon;
+
+// Forward declare range class
 
 // define some pointers for simpler handling
 MAKE_UNIQUE_PTR(Geometry);
@@ -282,27 +286,49 @@ is_cusp(const cell& _l, const cell& _m, const cell& _r) noexcept {
   return signed_y_diff(_l, _m) * signed_y_diff(_m, _r) < 0;
 }
 
-discrete_polygon
-area(const discrete_polygon& _outline) {
+/// @brief A Range defined by min and max values.
+class range {
+public:
+  range(const int _min, const int _max) {
+    // We sort the indices to make sure that the order is correct
+    std::tie(min_, max_) = std::minmax(_min, _max);
+  }
+
+  const int&
+  min() const {
+    return min_;
+  }
+
+  const int&
+  max() const {
+    return max_;
+  }
+
+private:
+  int min_;
+  int max_;
+};
+
+// define scan line types
+using x_list = std::vector<range>;
+using y_hash = std::unordered_map<int, x_list>;
+
+y_hash
+area_iterator(const discrete_polygon& _outline) {
   // Now we do a sort-free line-fill-algorithm for area checking.
   // We don't sort by y-values, but just throw them into a hash-map.
-  // algorithm has 2 steps:
+  // Algorithm has 2 steps:
   // 1 - Generate the scan_line; (y-lines) of cooridnate pairs
   // 2 - Check pairwise the values
-  using x_list = std::vector<int>;
-  using y_hash = std::unordered_map<int, x_list>;
-
   y_hash scan_line;
 
   // Better safe than sorry
-  if (_outline.cols() < 3)
-    throw std::out_of_range("Invalid size");
+  if (_outline.cols() == 0)
+    throw std::out_of_range("Outline cannot be empty");
 
   const auto n_pts = static_cast<size_t>(_outline.cols());
 
-  // Below step 1: Generate the scan_line structure.
-  // We have to be extra-careful at the ends, since the outline is a closed
-  // polygon. here we check the first element
+  // Below step 1: Generate the scan_line structure
 
   // Find the end point where y changes
   size_t end = n_pts - 1;
@@ -310,60 +336,61 @@ area(const discrete_polygon& _outline) {
     --end;
   }
 
-  // Similarly, find the start point where y chanegs
-  size_t start = 0;
-  while (start != end && _outline(1, start) == _outline(1, 0)) {
-    ++start;
+  // If end is 0, it means that all points were at the same height. In such a
+  // case, we simply return the min and max at the given y coordinate
+  if (end == 0) {
+    int min_x = _outline.row(0).minCoeff();
+    int max_x = _outline.row(0).maxCoeff();
+
+    scan_line[_outline(1, 0)].push_back({min_x, min_x});
+    scan_line[_outline(1, 0)].push_back({max_x, max_x});
+    return scan_line;
   }
 
-  // Return base cells if no area is defined
-  if (start >= end) {
-    return _outline;
-  }
+  // Helper to wrap points around in case index reaches the size
+  const auto wrap_around = [n_pts](const size_t _idx) {
+    return _idx == n_pts ? 0 : _idx;
+  };
 
-  // Add to the scan line if the current point is not a cusp
-  if (!is_cusp(_outline.col(end), _outline.col(0), _outline.col(start))) {
-    // We create a mapping of y-coordinates to multiple x-coordinates
-    scan_line[_outline(1, 0)].push_back(_outline(0, 0));
-  }
+  for (size_t curr = 0, last = end; curr <= end; ++curr) {
+    auto next = wrap_around(curr + 1);
 
-  // Use a two pointer iteration to add 'non-horizontal' elements to the scan
-  // line in [start, end)
-  for (size_t prev = 0, curr = start; curr != end;) {
-    auto next = curr + 1;
-    // Skip the horizontal part...
-    while (next != end && _outline(1, curr) == _outline(1, next)) {
-      ++curr;
-      ++next;
+    // Skip curr if y does not change between curr and next
+    if (_outline(1, curr) == _outline(1, next)) {
+      continue;
     }
 
-    // Skips cusps in y-direction...
-    if (!is_cusp(_outline.col(prev), _outline.col(curr), _outline.col(next))) {
-      // Add the x-coordinate of the curr point to the y-hashmap
-      scan_line[_outline(1, curr)].push_back(_outline(0, curr));
+    // Add current range to the scan line
+    const auto start = wrap_around(last + 1);
+    scan_line[_outline(1, curr)].push_back(
+        {_outline(0, start), _outline(0, curr)});
+
+    // If current range is a cusp, add it again
+    if (is_cusp(_outline.col(last), _outline.col(curr), _outline.col(next))) {
+      scan_line[_outline(1, curr)].push_back(
+          {_outline(0, start), _outline(0, curr)});
     }
 
-    // update the variables
-    prev = curr;
-    curr = next;
-  }
-
-  // Check end - here we short-cut the algorithm and just check if the final
-  // scan_line has odd number of elements
-  {
-    const auto& end_pt = _outline.col(end);
-
-    if (!scan_line[end_pt.y()].empty() && scan_line[end_pt.y()].size() % 2 == 1)
-      scan_line[end_pt.y()].push_back(end_pt.x());
+    last = curr;
   }
 
   // Now, sort the x-line pairs to account for non-convex shapes
   std::for_each(scan_line.begin(), scan_line.end(), [](auto& line_pairs) {
-    std::sort(line_pairs.second.begin(), line_pairs.second.end());
+    std::sort(line_pairs.second.begin(), line_pairs.second.end(),
+              [](const range& _r0, const range& _r1) {
+                return _r0.min() < _r1.min();
+              });
   });
 
+  return scan_line;
+}
+
+discrete_polygon
+area(const discrete_polygon& _outline) {
+  const auto scan_line = area_iterator(_outline);
+
   // Size computation for number of area cells
-  size_t n_cells = static_cast<size_t>(_outline.cols());
+  size_t n_cells = 0;
 
   // Accumulate the inner cells size
   for (const auto& line_pairs : scan_line) {
@@ -375,20 +402,12 @@ area(const discrete_polygon& _outline) {
       throw std::logic_error("line-scan algorithm failed");
 
     for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
-      // Can happen if 2 points of the polygon got discretized to the same cell
-      const auto diff = std::abs(*itt - *(itt + 1));
-      n_cells += static_cast<size_t>(std::max(diff - 1, 0));
+      n_cells += static_cast<size_t>((*(itt + 1)).max() - (*itt).min() + 1);
     }
   }
 
-  // Below step 2: now check for every y line the x-pairs
-  discrete_polygon area(2, n_cells);
-
-  // Block copy the outline
-  area.block(0, 0, 2, n_pts) = _outline;
-
-  // Counter to determine how many points we have already added to the area
-  size_t counter = n_pts;
+  discrete_polygon area_cells(2, n_cells);
+  size_t counter = 0;
 
   for (const auto& line_pairs : scan_line) {
     // Contains the list of x coordinates
@@ -397,24 +416,16 @@ area(const discrete_polygon& _outline) {
 
     // Go over line pairs and fill in the inner cells
     for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
-      auto curr_x = *itt;
-      const auto end_x = *(itt + 1);
+      auto curr_x = (*itt).min();
+      const auto end_x = (*(itt + 1)).max();
 
-      // Can happen if 2 points of the polygon got discretized to the same cell
-      if (curr_x == end_x) {
-        continue;
-      }
-
-      // Skip first point as we already added it above
-      ++curr_x;
-
-      while (curr_x != end_x) {
-        area.col(counter++) = cell{curr_x, curr_y};
+      while (curr_x <= end_x) {
+        area_cells.col(counter++) = cell{curr_x, curr_y};
         ++curr_x;
       }
     }
   }
-  return area;
+  return area_cells;
 }
 
 discrete_polygon
