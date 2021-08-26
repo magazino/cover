@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <memory>
 #include <numeric>
 #include <sstream>
@@ -40,8 +41,6 @@ using gg::CoordinateSequence;
 using gg::Geometry;
 using gg::LinearRing;
 using gg::Polygon;
-
-// Forward declare range class
 
 // define some pointers for simpler handling
 MAKE_UNIQUE_PTR(Geometry);
@@ -313,118 +312,228 @@ private:
 using x_list = std::vector<range>;
 using y_hash = std::unordered_map<int, x_list>;
 
-y_hash
-area_iterator(const discrete_polygon& _outline) {
-  // Now we do a sort-free line-fill-algorithm for area checking.
-  // We don't sort by y-values, but just throw them into a hash-map.
-  // Algorithm has 2 steps:
-  // 1 - Generate the scan_line; (y-lines) of cooridnate pairs
-  // 2 - Check pairwise the values
-  y_hash scan_line;
+class area_constructor {
+public:
+  /**
+   * @brief Constructs the fill area from the given closed outline
+   *
+   * @param _outline The closed outline to fill. The outline is included in the
+   * fill cells
+   *
+   * @throw std::out_of_range If outline is empty
+   * @throw std::logic_error If the outline is not closed properly
+   */
+  area_constructor(const discrete_polygon& _outline) {
+    // Now we do a sort-free line-fill-algorithm for area checking.
+    // We don't sort by y-values, but just throw them into a hash-map.
+    // Algorithm has 2 steps:
+    // 1 - Generate the scan_line; (y-lines) of cooridnate pairs
+    // 2 - Check pairwise the values
 
-  // Better safe than sorry
-  if (_outline.cols() == 0)
-    throw std::out_of_range("Outline cannot be empty");
+    // Better safe than sorry
+    if (_outline.cols() == 0)
+      throw std::out_of_range("Outline cannot be empty");
 
-  const auto n_pts = static_cast<size_t>(_outline.cols());
+    const auto n_pts = static_cast<size_t>(_outline.cols());
 
-  // Below step 1: Generate the scan_line structure
+    // Below step 1: Generate the scan_line structure
 
-  // Find the end point where y changes
-  size_t end = n_pts - 1;
-  while (end != 0 && _outline(1, end) == _outline(1, 0)) {
-    --end;
+    // Find the end point where y changes
+    size_t end = n_pts - 1;
+    while (end != 0 && _outline(1, end) == _outline(1, 0)) {
+      --end;
+    }
+
+    // If end is 0, it means that all points were at the same height. In such a
+    // case, we simply return the min and max at the given y coordinate
+    if (end == 0) {
+      int min_x = _outline.row(0).minCoeff();
+      int max_x = _outline.row(0).maxCoeff();
+
+      hash_map_[_outline(1, 0)].push_back({min_x, min_x});
+      hash_map_[_outline(1, 0)].push_back({max_x, max_x});
+    }
+
+    // Helper to wrap points around in case index reaches the size
+    const auto wrap_around = [n_pts](const size_t _idx) {
+      return _idx == n_pts ? 0 : _idx;
+    };
+
+    for (size_t curr = 0, last = end; curr <= end; ++curr) {
+      auto next = wrap_around(curr + 1);
+
+      // Skip curr if y does not change between curr and next
+      if (_outline(1, curr) == _outline(1, next)) {
+        continue;
+      }
+
+      // Add current range to the scan line
+      const auto start = wrap_around(last + 1);
+      hash_map_[_outline(1, curr)].push_back(
+          {_outline(0, start), _outline(0, curr)});
+
+      // If current range is a cusp, add it again
+      if (is_cusp(_outline.col(last), _outline.col(curr), _outline.col(next))) {
+        hash_map_[_outline(1, curr)].push_back(
+            {_outline(0, start), _outline(0, curr)});
+      }
+
+      last = curr;
+    }
+
+    // Now, sort the x-line pairs to account for non-convex shapes
+    std::for_each(hash_map_.begin(), hash_map_.end(), [](auto& line_pairs) {
+      std::sort(line_pairs.second.begin(), line_pairs.second.end(),
+                [](const range& _r0, const range& _r1) {
+                  return _r0.min() < _r1.min();
+                });
+    });
+
+    // Finally, compute the size
+    size_ = verify_and_compute_size(hash_map_);
   }
 
-  // If end is 0, it means that all points were at the same height. In such a
-  // case, we simply return the min and max at the given y coordinate
-  if (end == 0) {
-    int min_x = _outline.row(0).minCoeff();
-    int max_x = _outline.row(0).maxCoeff();
+  class iterator {
+    // Define internal types
+    using line_iterator_t = y_hash::const_iterator;
+    using range_iterator_t = y_hash::value_type::second_type::const_iterator;
 
-    scan_line[_outline(1, 0)].push_back({min_x, min_x});
-    scan_line[_outline(1, 0)].push_back({max_x, max_x});
-    return scan_line;
-  }
+  public:
+    // Define the iterator category as per the stl standard
+    using iterator_category = std::input_iterator_tag;
+    using value_type = cell;
 
-  // Helper to wrap points around in case index reaches the size
-  const auto wrap_around = [n_pts](const size_t _idx) {
-    return _idx == n_pts ? 0 : _idx;
+    iterator(line_iterator_t _line_itt, line_iterator_t _end_itt) :
+        line_itt_(std::move(_line_itt)),
+        end_itt_(std::move(_end_itt)),
+        curr_x_() {
+      update();
+    }
+
+    iterator&
+    operator++() {
+      increment();
+      return *this;
+    }
+
+    bool
+    operator!=(const iterator& other) const {
+      return line_itt_ != other.line_itt_;
+    }
+
+    value_type
+    operator*() const {
+      return {curr_x_, line_itt_->first};
+    }
+
+  private:
+    /**
+     * @brief Increments the internal iterators such that we return the next
+     * cell of the area when dereferenced
+     */
+    void
+    increment() {
+      // In case we are still iterating over the current range
+      if (curr_x_ < (curr_range_ + 1)->max()) {
+        ++curr_x_;
+      }
+      // Otherwise, we check if there is another valid range pair
+      else if ((curr_range_ + 2) != line_itt_->second.end()) {
+        curr_range_ += 2;
+        curr_x_ = curr_range_->min();
+      }
+      // If both the above conditions are not met, it means that we have gone
+      // over all the area cells at the current y. We then move to the next y
+      // value
+      else {
+        ++line_itt_;
+        update();
+      }
+    }
+
+    /**
+     * @brief Updates the internal state variables if there are lines remaining
+     */
+    void
+    update() {
+      if (line_itt_ != end_itt_) {
+        curr_range_ = line_itt_->second.begin();
+        curr_x_ = curr_range_->min();
+      }
+    }
+
+    // Info about the hashmap
+    line_iterator_t line_itt_;
+    line_iterator_t end_itt_;
+
+    // Internal state variables
+    range_iterator_t curr_range_;
+    int curr_x_;
   };
 
-  for (size_t curr = 0, last = end; curr <= end; ++curr) {
-    auto next = wrap_around(curr + 1);
-
-    // Skip curr if y does not change between curr and next
-    if (_outline(1, curr) == _outline(1, next)) {
-      continue;
-    }
-
-    // Add current range to the scan line
-    const auto start = wrap_around(last + 1);
-    scan_line[_outline(1, curr)].push_back(
-        {_outline(0, start), _outline(0, curr)});
-
-    // If current range is a cusp, add it again
-    if (is_cusp(_outline.col(last), _outline.col(curr), _outline.col(next))) {
-      scan_line[_outline(1, curr)].push_back(
-          {_outline(0, start), _outline(0, curr)});
-    }
-
-    last = curr;
+  size_t
+  size() const {
+    return size_;
   }
 
-  // Now, sort the x-line pairs to account for non-convex shapes
-  std::for_each(scan_line.begin(), scan_line.end(), [](auto& line_pairs) {
-    std::sort(line_pairs.second.begin(), line_pairs.second.end(),
-              [](const range& _r0, const range& _r1) {
-                return _r0.min() < _r1.min();
-              });
-  });
+  iterator
+  begin() const {
+    return {hash_map_.begin(), hash_map_.end()};
+  }
 
-  return scan_line;
-}
+  iterator
+  end() const {
+    return {hash_map_.end(), hash_map_.end()};
+  }
+
+private:
+  /**
+   * @brief Computes the total number of cells after filling the area and
+   * verifies that the pairs are even in number for every y
+   *
+   * @param _hash_map The hash map for which cells count needs to be computed
+   * @return Total number of cells
+   *
+   * @throw std::logic_error If the scan line have odd number of x-pairs at any
+   * given y
+   */
+  static size_t
+  verify_and_compute_size(const y_hash& _hash_map) {
+    size_t n_cells = 0;
+
+    // Accumulate the inner cells size
+    for (const auto& line_pairs : _hash_map) {
+      // Contains the list of x coordinates
+      const auto& x_line = line_pairs.second;
+
+      // sanity check if we are good to go
+      if (x_line.size() % 2 != 0)
+        throw std::logic_error("line-scan algorithm failed");
+
+      for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
+        n_cells += static_cast<size_t>((*(itt + 1)).max() - (*itt).min() + 1);
+      }
+    }
+
+    return n_cells;
+  }
+
+  y_hash hash_map_;
+  size_t size_;
+};
 
 discrete_polygon
 area(const discrete_polygon& _outline) {
-  const auto scan_line = area_iterator(_outline);
+  const auto area_ctor = area_constructor(_outline);
 
-  // Size computation for number of area cells
-  size_t n_cells = 0;
-
-  // Accumulate the inner cells size
-  for (const auto& line_pairs : scan_line) {
-    // Contains the list of x coordinates
-    const auto& x_line = line_pairs.second;
-
-    // sanity check if we are good to go
-    if (x_line.size() % 2 != 0)
-      throw std::logic_error("line-scan algorithm failed");
-
-    for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
-      n_cells += static_cast<size_t>((*(itt + 1)).max() - (*itt).min() + 1);
-    }
-  }
-
-  discrete_polygon area_cells(2, n_cells);
+  // Fetch the area cells from the area constructor
+  discrete_polygon area_cells(2, area_ctor.size());
   size_t counter = 0;
 
-  for (const auto& line_pairs : scan_line) {
-    // Contains the list of x coordinates
-    const auto curr_y = line_pairs.first;
-    const auto& x_line = line_pairs.second;
-
-    // Go over line pairs and fill in the inner cells
-    for (auto itt = x_line.begin(); itt != x_line.end(); itt += 2) {
-      auto curr_x = (*itt).min();
-      const auto end_x = (*(itt + 1)).max();
-
-      while (curr_x <= end_x) {
-        area_cells.col(counter++) = cell{curr_x, curr_y};
-        ++curr_x;
-      }
-    }
+  for (const auto& fill_cell : area_ctor) {
+    area_cells.col(counter++) = fill_cell;
   }
+
   return area_cells;
 }
 
