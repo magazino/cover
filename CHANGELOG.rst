@@ -2,6 +2,32 @@
 Changelog for package cover
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2021-09-16)
+------------------
+* Merged in SW-49813_stl_area_iterator (pull request #12)
+  SW-49813 stl area iterator
+  * SW-48772 Rewrite scan line algorithm to include boundary by construction
+  * SW-48772 Write comments in a more clear words
+  * SW-48772 Shift to ranges
+  * SW-48772 Catch cases where all points are colinear
+  * SW-48772 Add missing include
+  * SW-48772 Format test
+  * SW-48772 Change from array to ints
+  * SW-49813 Added stl compatible fill area iterator
+  * SW-49813 Merge with master
+  * SW-49813 Changes for PR
+  Approved-by: Dmitrij Dorezyuk
+* fixup compile warning for tests
+* fixup the pedantic warnings for ros-includes
+* update maintainer
+* Merged in SW-48772_create_area_iterator (pull request #11)
+  SW-48772 Rewrite scan line algorithm to include boundary by construction
+  Approved-by: Dmitrij Dorezyuk
+* Merged in SW-48771_Add_non_convex_support (pull request #10)
+  SW-48771 Add non convex support
+  Approved-by: Dmitrij Dorezyuk
+* Merged in dima/area (pull request #9)
+
 0.3.0 (2020-10-14)
 ------------------
 * fix bug
