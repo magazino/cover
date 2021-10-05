@@ -35,7 +35,7 @@ make_footprint(std::vector<double> _coordinates) {
       .transpose();
 }
 
-static polygon
+inline polygon
 make_circle(size_t _s, double _radius) noexcept {
   polygon out(2, _s);
   const auto d_s = static_cast<double>(_s);
@@ -48,7 +48,7 @@ make_circle(size_t _s, double _radius) noexcept {
   return out;
 }
 
-static std::vector<geometry_msgs::Point>
+inline std::vector<geometry_msgs::Point>
 to_msgs(const polygon& _p) noexcept {
   std::vector<geometry_msgs::Point> msg(_p.cols());
   for (int cc = 0; cc != _p.cols(); ++cc) {
