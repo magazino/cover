@@ -169,7 +169,7 @@ _get_factor(const double& _res) {
 }
 
 discrete_polygon
-discretise(const polygon& _polygon, double _res) {
+sparse_outline(const polygon& _polygon, double _res) {
   // get the factor - will throw for bad resolution
   const auto factor = _get_factor(_res);
 
@@ -201,6 +201,45 @@ ray_generator::ray_generator(const cell& _begin, const cell& _end) :
   inc_major_[min_row] = 0;
 }
 
+outline_generator::outline_generator(const discrete_polygon& _sparse) noexcept :
+    size_(0) {
+  // Reserve space
+  const auto n_pts = static_cast<size_t>(_sparse.cols());
+  outline_.reserve(n_pts);
+
+  if (n_pts == 0) {
+    return;
+  }
+
+  // Create ray generator for each point pair
+  for (size_t idx = 0; idx < n_pts - 1; ++idx) {
+    add(_sparse.col(idx), _sparse.col(idx + 1));
+  }
+
+  // If there were more than 2 non-degenrate points, close the outline. If the
+  // size of outline is still zero, it means that all points got discretized to
+  // the same cell. In such a case, we will add the point manually in the else
+  // clause. We deal case of 1 or 2 points similarly
+  if (outline_.size() > 1) {
+    add(_sparse.col(n_pts - 1), _sparse.col(0));
+  }
+  else {
+    // We create a dummy point by offsetting by 1 which will not be included (as
+    // it is the end point)
+    const cell dummy = _sparse.col(n_pts - 1).array() + 1;
+    add(_sparse.col(n_pts - 1), dummy);
+  }
+}
+
+void
+outline_generator::add(const cell& _begin, const cell& _end) noexcept {
+  // If not degenerate
+  if (_begin != _end) {
+    outline_.emplace_back(_begin, _end);
+    size_ += outline_.back().size();
+  }
+}
+
 discrete_polygon
 raytrace(const cell& _begin, const cell& _end) noexcept {
   const ray_generator line(_begin, _end);
@@ -223,52 +262,25 @@ ray_size(const cell& _begin, const cell& _end) noexcept {
 }
 
 discrete_polygon
-densify(const discrete_polygon& _sparse) noexcept {
-  const auto sparse_cols = _sparse.cols();
+dense_outline(const discrete_polygon& _sparse) noexcept {
+  const outline_generator outline(_sparse);
 
-  // trivial case check
-  if (sparse_cols < 2)
-    return _sparse;
+  discrete_polygon dense(2, outline.size());
+  size_t counter = 0;
 
-  // first calculate the final size of the array
-  // allocate memory for the ray_sizes (rs)
-  std::vector<int> rs(sparse_cols, 0);
-
-  // double pointer iteration to get the size of every ray
-  // note: with the check above sparse_cols cannot be negative
-  for (int ii = 0; ii != sparse_cols - 1; ++ii)
-    rs[ii] = ray_size(_sparse.col(ii), _sparse.col(ii + 1));
-
-  // add the last one
-  if (sparse_cols > 2)
-    rs.back() = ray_size(_sparse.col(sparse_cols - 1), _sparse.col(0));
-
-  // now allocate enough memory dense and densify
-  // the last element of rs is the final number of dense-points
-  discrete_polygon dense(2, std::accumulate(rs.begin(), rs.end(), 0));
-
-  // double pointer iteration to get the ray
-  // note: with the check above sparse_cols cannot be negative
-  int start_col = 0;
-  for (int ii = 0; ii != sparse_cols - 1; ++ii) {
-    dense.block(0, start_col, 2, rs[ii]) =
-        raytrace(_sparse.col(ii), _sparse.col(ii + 1));
-    start_col += rs[ii];
+  for (const auto& curr_cell : outline) {
+    dense.col(counter++) = curr_cell;
   }
 
-  // close the last one
-  if (sparse_cols > 2) {
-    dense.block(0, start_col, 2, rs.back()) =
-        raytrace(_sparse.col(sparse_cols - 1), _sparse.col(0));
-  }
+  assert(counter == outline.size() && "Mismatched size");
 
   return dense;
 }
 
 discrete_polygon
 dense_outline(const polygon& _p, double _res) {
-  const discrete_polygon discrete = discretise(_p, _res);
-  return densify(discrete);
+  const discrete_polygon discrete = sparse_outline(_p, _res);
+  return dense_outline(discrete);
 }
 
 inline int

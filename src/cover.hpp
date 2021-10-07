@@ -95,6 +95,12 @@ public:
     using iterator_category = std::input_iterator_tag;
     using value_type = cell;
 
+    /**
+     * @brief Allow iterator to be only default constructable outside this
+     * class. Should only be used for empty/invalid iterators
+     */
+    iterator() : iterator(0ul) {}
+
     iterator&
     operator++() {
       num_ += ray_gen_->add_;
@@ -125,7 +131,7 @@ public:
 
   private:
     // Pointer to ray generator object
-    const ray_generator* const ray_gen_;
+    const ray_generator* ray_gen_;
 
     // Internal state variables
     cell val_;
@@ -162,6 +168,118 @@ private:
 
   // Size and addition coefficient
   size_t size_, add_;
+};
+
+class outline_generator {
+  using ray_generator_vec = std::vector<ray_generator>;
+
+public:
+  /**
+   * @brief Creates the outline generator
+   *
+   * @param _sparse An eigen matrix containing sparse discretized 2D points
+   */
+  explicit outline_generator(const discrete_polygon& _sparse) noexcept;
+
+  class iterator {
+    /**
+     * @brief The iterator should be only created from the outline_generator
+     */
+    friend outline_generator;
+
+    /**
+     * @brief Constructs the outline iterator
+     *
+     * @param _begin The start line of the polygon
+     * @param _end The end line of the polygon
+     */
+    iterator(ray_generator_vec::const_iterator _begin,
+             ray_generator_vec::const_iterator _end) :
+        outer_end_(_end), outer_itt_(_begin), counter_(0) {
+      if (outer_itt_ != outer_end_) {
+        inner_itt_ = outer_itt_->begin();
+      }
+    }
+
+    /**
+     * @brief Constructs the end of outline iterator
+     *
+     * @param _size Total cell count of the outline
+     */
+    explicit iterator(const size_t _size) noexcept : counter_(_size) {}
+
+  public:
+    // Define the iterator category as per the STL standard
+    using iterator_category = std::input_iterator_tag;
+    using value_type = cell;
+
+    iterator&
+    operator++() {
+      if (++inner_itt_ == outer_itt_->end() && ++outer_itt_ != outer_end_) {
+        inner_itt_ = outer_itt_->begin();
+      }
+
+      ++counter_;
+      return *this;
+    }
+
+    bool
+    operator==(const iterator& _other) const noexcept {
+      return counter_ == _other.counter_;
+    }
+
+    bool
+    operator!=(const iterator& other) const noexcept {
+      return counter_ != other.counter_;
+    }
+
+    const value_type&
+    operator*() const noexcept {
+      return *inner_itt_;
+    }
+
+  private:
+    // Iterators
+    const ray_generator_vec::const_iterator outer_end_;
+    ray_generator_vec::const_iterator outer_itt_;
+    ray_generator_vec::value_type::iterator inner_itt_;
+
+    // Internal state variables
+    size_t counter_;
+  };
+
+  size_t
+  size() const noexcept {
+    return size_;
+  }
+
+  bool
+  empty() const noexcept {
+    return size_ == 0;
+  }
+
+  iterator
+  begin() const noexcept {
+    return iterator{outline_.begin(), outline_.end()};
+  }
+
+  iterator
+  end() const noexcept {
+    return iterator(size_);
+  }
+
+private:
+  /**
+   * @brief Add ray generator to the outline if ray is not degenrate
+   *
+   * @param _begin The start point of the ray
+   * @param _end The end point of the ray
+   */
+  void
+  add(const cell& _begin, const cell& _end) noexcept;
+
+  ray_generator_vec outline_;
+  size_t size_;
 };
 
 class area_generator {
@@ -305,7 +423,7 @@ private:
  * @param _res the resolution (size of a cell)
  */
 discrete_polygon
-discretise(const polygon& _p, double _res);
+sparse_outline(const polygon& _p, double _res);
 
 // below some machinery to densify the outline
 
@@ -331,7 +449,7 @@ raytrace(const cell& _begin, const cell& _end) noexcept;
  * @param _sparse polygon of an arbitrary size
  */
 discrete_polygon
-densify(const discrete_polygon& _sparse) noexcept;
+dense_outline(const discrete_polygon& _sparse) noexcept;
 
 /**
  * @brief Generates a dense outline of the given polygon.

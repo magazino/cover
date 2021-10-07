@@ -51,6 +51,15 @@ TEST_F(empty_polygon_fixture, invalid_radius) {
   EXPECT_ANY_THROW(split(p, -1));
 }
 
+TEST_F(empty_polygon_fixture, dense_outline) {
+  // Empty outline should not throw
+  discrete_polygon result;
+  const auto result_gatherer = [&]() { result = dense_outline(p, 0.05); };
+
+  EXPECT_NO_THROW(result_gatherer());
+  EXPECT_EQ(result.size(), 0);
+}
+
 TEST(split, tree_points) {
   // just show that we accept polygons with at least 3 distinct points...
   const polygon random = polygon::Random(2, 3);

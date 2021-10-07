@@ -63,6 +63,38 @@ static std::vector<std::vector<double>> footprints = {
      -0.13, -0.04, -0.03, -0.00}};
 
 static void
+generate_outline_cover(benchmark::State& _state) {
+  // Get the specific footprint.
+  const auto& data = footprints.at(_state.range(0));
+  const auto sparse = sparse_outline(make_footprint(data), 0.05);
+
+  for (auto _ : _state) {
+    outline_generator g(sparse);
+    for (const auto& c : g)
+      benchmark::DoNotOptimize(c.x());
+  }
+}
+
+static void
+generate_outline_costmap(benchmark::State& _state) {
+  // Get the specific footprint.
+  const auto& data = footprints.at(_state.range(0));
+  base_local_planner::FootprintHelper fh;
+  costmap_2d::Costmap2D map(500, 500, 0.05, -12.5, -12.5);
+  const auto outline = to_msgs(make_footprint(data));
+
+  for (auto _ : _state) {
+    const auto cells = fh.getFootprintCells({0, 0, 0}, outline, map, false);
+    for (const auto& c : cells)
+      benchmark::DoNotOptimize(c.x);
+  }
+}
+
+// Register the function as a benchmark
+BENCHMARK(generate_outline_cover)->DenseRange(0, 5);
+BENCHMARK(generate_outline_costmap)->DenseRange(0, 5);
+
+static void
 generate_area_cover(benchmark::State& _state) {
   // Get the specific footprint.
   const auto& data = footprints.at(_state.range(0));

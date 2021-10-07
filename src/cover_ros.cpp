@@ -60,8 +60,8 @@ dense_outline(cm_map& _map, const polygon& _p, const se2& _pose) {
     throw std::out_of_range("polygon outside of map");
 
   // create the discrete representation
-  const auto discrete = discretise(relative, _map.getResolution());
-  const auto dense = densify(discrete);
+  const auto discrete = sparse_outline(relative, _map.getResolution());
+  const auto dense = dense_outline(discrete);
 
   // convert to the costmap format
   // todo do we need here cm?
