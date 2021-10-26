@@ -1,72 +1,98 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.0.2)
 project(cover)
 
-set(CATKIN_REQUIRED_PACKAGE base_local_planner costmap_2d roscpp)
+# Below the various toggles for compilation
+option(COVER_BENCHMARK "Toggle to build the benchmark" OFF)
+option(COVER_CLANG_TIDY "Toggle to use clang-tidy" OFF)
+option(COVER_DOXYGEN "Toggle to build the documentation with Doxygen" OFF)
+option(COVER_IWYU "Toggle the include-what-you-use checks" OFF)
+
+set(CATKIN_REQUIRED_PACKAGE costmap_2d roscpp)
 # library targets ros-melodic or newer.
 # set CMAKE_CXX_STANDARD to 11 if compiling otherwise.
 add_compile_options(-Wpedantic -Wall -Wextra)
 
 # the clang-tidy checks are optional
-# set(CMAKE_CXX_CLANG_TIDY
-#  "clang-tidy; -checks=*, -clang-analyzer-cplusplus*, -clang-diagnostic-*, -clang-analyzer-*")
-
+if(COVER_CLANG_TIDY)
+  set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
+endif()
 
 find_package(catkin REQUIRED COMPONENTS ${CATKIN_REQUIRED_PACKAGE})
 find_package(Eigen3 REQUIRED)
-find_library(GEOS_LIBRARIES geos PATHS /usr/lib /usr/local/lib)
-find_path(GEOS_INCLUDE_DIRS geos HINTS /usr/include /usr/local/include)
+find_package(Boost REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS src
-  LIBRARIES ${PROJECT_NAME} ${PROJECT_NAME}_ros
+  LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS ${CATKIN_REQUIRED_PACKAGE}
+  DEPENDS EIGEN3 Boost
 )
 
-# barebone lib
-add_library(${PROJECT_NAME} src/cover.cpp)
+# barebone lib (without ros)
+add_library(${PROJECT_NAME}
+  src/base.cpp
+  src/generators.cpp
+)
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
-  ${catkin_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
-  ${GEOS_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${GEOS_LIBRARIES})
+)
 
 # ros-interface lib
-add_library(${PROJECT_NAME}_ros src/cover_ros.cpp)
+add_library(${PROJECT_NAME}_ros
+  src/costmap.cpp
+  src/footprints.cpp
+)
 target_include_directories(${PROJECT_NAME}_ros PUBLIC src)
-target_link_libraries(${PROJECT_NAME}_ros ${PROJECT_NAME} ${catkin_LIBRARIES})
+target_include_directories(${PROJECT_NAME}_ros SYSTEM PUBLIC ${catkin_INCLUDE_DIRS})
 
-# test node
-# todo remove this node
-add_executable(${PROJECT_NAME}_node src/cover_node.cpp)
-target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME}_ros ${PROJECT_NAME} ${catkin_LIBRARIES})
 
 #############
 ## Install ##
 #############
 
-install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_ros
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
+install(TARGETS ${PROJECT_NAME}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 
-install(FILES src/cover.hpp src/cover_ros.hpp
-        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY src/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+)
 
 #############
 ## Testing ##
 #############
 
 if(CATKIN_ENABLE_TESTING)
+  # We will compare the results to opencv and ros-navigation's base-local-planner
   find_package(OpenCV REQUIRED)
+  find_package(base_local_planner REQUIRED)
 
   catkin_add_gtest(${PROJECT_NAME}_test
-    test/cover.cpp
-    test/cover_ros.cpp)
+    test/costmap.cpp
+    test/expand.cpp
+    test/footprints.cpp
+    test/generators.cpp
+  )
 
-  target_include_directories(${PROJECT_NAME}_test PUBLIC src ${OpenCV_INCLUDE_DIRS})
+  target_include_directories(${PROJECT_NAME}_test PUBLIC
+    src
+    ${OpenCV_INCLUDE_DIRS}
+    ${base_local_planner_INCLUDE_DIRS}
+  )
   if (TARGET ${PROJECT_NAME}_test)
-    target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_ros gtest_main ${OpenCV_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME}_test
+      ${PROJECT_NAME}
+      ${PROJECT_NAME}_ros
+      gtest_main
+      ${OpenCV_LIBRARIES}
+      ${base_local_planner_LIBRARIES}
+    )
   endif()
 endif()
 
@@ -74,16 +100,77 @@ endif()
 ## Benchmark ##
 ###############
 
-set(COVER_BENCHMARK "Enable benchmarking" ON)
 if(COVER_BENCHMARK)
   find_package(benchmark)
+  find_package(base_local_planner REQUIRED)
+  find_package(nav_grid_iterators REQUIRED)
+
   if(benchmark_FOUND)
     add_executable(${PROJECT_NAME}_perf
-      perf/cover_ros.cpp
-      perf/cover.cpp)
-    target_link_libraries(${PROJECT_NAME}_perf benchmark::benchmark ${PROJECT_NAME}_ros)
-    target_include_directories(${PROJECT_NAME}_perf PRIVATE test)
+      perf/expand.cpp
+      perf/footprints.cpp
+    )
+    target_link_libraries(${PROJECT_NAME}_perf
+      benchmark::benchmark
+      ${PROJECT_NAME}_ros
+      ${base_local_planner_LIBRARIES}
+      ${nav_grid_iterators_LIBRARIES}
+    )
+    target_include_directories(${PROJECT_NAME}_perf PRIVATE
+      test
+      src
+      ${base_local_planner_INCLUDE_DIRS}
+      ${nav_grid_iterators_INCLUDE_DIRS}
+    )
+
   else()
     message("benchmark library not found")
+  endif()
+endif()
+
+#############
+## Doxygen ##
+#############
+
+if(COVER_DOXYGEN)
+  find_package(Doxygen REQUIRED)
+
+  if(DOXYGEN_FOUND) 
+    set(COVER_DOXYFILE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile)
+
+    # Configure the Doxyfile.
+    configure_file(doc/Doxyfile.in ${COVER_DOXYFILE_PATH} @ONLY)
+    
+    # Build the documentation.
+    add_custom_target(
+      cover_build_doxygen ALL
+      COMMAND ${DOXYGEN_EXECUTABLE} ${COVER_DOXYFILE_PATH}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/doc
+      COMMENT "Generating API documentation with Doxygen"
+      VERBATIM
+    )
+  else()
+    message("Doxygen not found")
+  endif()
+endif()
+
+##########
+## IWYU ##
+##########
+
+if(COVER_IWYU)
+  # IWYU is only supported from CMake-version 3.3.0
+  if(${CMAKE_VERSION} VERSION_LESS "3.3.0")
+    message("Include-what-you-use requires the CMake version 3.3.0")
+  else()
+    # Follow the documentation of the project to install this on your system.
+    # Try to find the executable.
+    find_program(iwyu_path NAMES include-what-you-use iwyu)
+    if(iwyu_path)
+      set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_INCLUDE_WHAT_YOU_USE ${iwyu_path})
+      set_property(TARGET ${PROJECT_NAME}_ros PROPERTY CXX_INCLUDE_WHAT_YOU_USE ${iwyu_path})
+    else()
+      message("include-what-you-use not found")
+    endif()
   endif()
 endif()

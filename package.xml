@@ -14,11 +14,15 @@
     <buildtool_depend>catkin</buildtool_depend>
     <buildtool_depend>clang-tidy</buildtool_depend>
 
+    <!-- Base-dependency -->
+    <depend>boost</depend>
+
+    <!-- Ros-dependency -->
     <depend>costmap_2d</depend>
     <depend>roscpp</depend>
-    <depend>libgeos++-dev</depend>
-    <!-- only for testing -->
-    <depend>base_local_planner</depend>
-    
+
+    <!-- only for testing / benchmarking -->
+    <test_depend>base_local_planner</test_depend>
     <test_depend>libopencv-dev</test_depend>
+    <test_depend>nav_grid_iterators</test_depend>
 </package>

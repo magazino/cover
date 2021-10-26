@@ -40,10 +40,10 @@ Changelog for package cover
 0.2.0 (2020-08-14)
 ------------------
 * document interfaces
-* use own raytrace function
+* use own to_line function
 * fix missing size-check
-* fix raytrace and add tests
-* add raytrace code
+* fix to_line and add tests
+* add to_line code
 
 0.1.0 (2020-07-31)
 ------------------
