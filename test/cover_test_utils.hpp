@@ -88,4 +88,23 @@ to_msgs(const polygon& _p) noexcept {
   return msg;
 }
 
+/**
+ * @brief Computes the bounds of the cells
+ *
+ * @param[in] _polygon Discretized polygon
+ * @param[out] _rows The number of rows
+ * @param[out] _cols The number of columns
+ */
+inline void
+compute_size(const discrete_polygon& _polygon, int& _rows, int& _cols) {
+  _cols = 0;
+  _rows = 0;
+
+  if (_polygon.cols()) {
+    const cell extent = _polygon.rowwise().maxCoeff();
+    _rows = extent.y() + 1;
+    _cols = extent.x() + 1;
+  }
+}
+
 }  // namespace cover

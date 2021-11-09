@@ -218,14 +218,24 @@ TEST_P(outline_fixture, compare_ros) {
 // AreaGenerator Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(area_generator, empty) {
-  area_generator gen({});
+template <typename T>
+inline void
+check_empty_area() {
+  area_generator gen(T{});
   ASSERT_TRUE(gen.empty());
 
   for (const auto& c : gen) {
     FAIL();
     ASSERT_EQ(c, cell::Zero());
   }
+}
+
+TEST(area_generator, empty_poly) {
+  check_empty_area<cover::discrete_polygon>();
+}
+
+TEST(area_generator, empty_poly_vec) {
+  check_empty_area<cover::discrete_polygon_vec>();
 }
 
 TEST(area_generator, box) {

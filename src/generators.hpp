@@ -368,6 +368,18 @@ public:
   explicit area_generator(const discrete_polygon& _outline);
   area_generator(double _resolution, const polygon& _polygon);
 
+  /**
+   * @brief Constructs the area_generator from the given closed outlines.
+   *
+   * @param _outlines The closed outlines representing the underlying geometry.
+   * By nesting outlines inside each other, it is possible to represent holes
+   * and areas inside holes...(generalized even-odd rule).
+   *
+   * @throw std::logic_error If the outline is not closed properly
+   */
+  explicit area_generator(const discrete_polygon_vec& _outlines);
+  area_generator(double _resolution, const polygon_vec& _polygons);
+
   class iterator : public detail::base_iterator {
     // The iterator should be only created from the area_generator.
     friend area_generator;
@@ -445,6 +457,8 @@ public:
   }
 
 private:
+  area_generator(const discrete_polygon* _outlines, size_t _n_outlines);
+
   x_list x_list_;
   size_t size_;
 };

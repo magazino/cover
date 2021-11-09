@@ -199,8 +199,106 @@ TEST_P(fill_non_convex_area_fixture, compare_opencv) {
     dense.at(idx).y = outline(1, idx);
   }
 
-  cv::Mat img(500, 500, CV_8U, cv::Scalar(0));
+  // Compute the OpenCV image size
+  int rows, cols;
+  compute_size(area_cells, rows, cols);
+  cv::Mat img(rows, cols, CV_8U, cv::Scalar(0));
+
   cv::fillPoly(img, std::vector<cv_points_vec>{dense}, cv::Scalar(1));
+  cv::findNonZero(img, expected);
+
+  auto get_index = [&](int _x, int _y) { return _x + _y * img.cols; };
+
+  // Compare the results
+  std::unordered_set<size_t> index_cover, index_cv;
+  for (int cc = 0, cols = area_cells.cols(); cc != cols; ++cc) {
+    index_cover.insert(get_index(area_cells(0, cc), area_cells(1, cc)));
+  }
+
+  for (const auto& cc : expected) {
+    index_cv.insert(get_index(cc.x, cc.y));
+  }
+
+  ASSERT_EQ(index_cover, index_cv);
+}
+
+struct fill_area_with_holes_fixture : public testing::TestWithParam<double> {
+  const polygon_vec poly_vec;
+  const double resolution;
+
+  fill_area_with_holes_fixture() :
+      poly_vec(create_head()), resolution(GetParam()) {}
+
+  /**
+   * @brief Creates a head figure with non-convex geometry and holes
+   *
+   * @return Polygon vector containing the head
+   */
+  static inline polygon_vec
+  create_head() {
+    // Define head boundary
+    polygon head(2, 6);
+    head << -1, 1, 1.5, 1.5, -1.5, -1.5, -2, -2, 0, 2, 2, 0;
+
+    // Define inner features
+    polygon eye_left(2, 4);
+    eye_left << -1, -0.2, -0.2, -1, 0.6, 0.6, 1, 1;
+
+    polygon eye_right(2, 4);
+    eye_right << 1, 0.2, 0.2, 1, 0.6, 0.6, 1, 1;
+
+    polygon eye_ball_left(2, 4);
+    eye_ball_left << -0.6, -0.5, -0.6, -0.7, 0.7, 0.8, 0.9, 0.8;
+
+    polygon eye_ball_right(2, 4);
+    eye_ball_right << 0.6, 0.5, 0.6, 0.7, 0.7, 0.8, 0.9, 0.8;
+
+    polygon nose(2, 3);
+    nose << 0, -0.25, 0.25, 0.1, -0.65, -0.65;
+
+    polygon mouth(2, 4);
+    mouth << -0.75, -0.5, 0.5, 0.75, -1, -1.5, -1.5, -1;
+
+    polygon_vec poly_vec{head,           eye_left, eye_right, eye_ball_left,
+                         eye_ball_right, nose,     mouth};
+    const point orig = head.rowwise().minCoeff();
+
+    for (auto& poly : poly_vec) {
+      poly.colwise() -= orig;
+    }
+
+    return poly_vec;
+  }
+};
+
+INSTANTIATE_TEST_CASE_P(
+    /**/, fill_area_with_holes_fixture,
+    testing::Values(0.2, 0.1, 0.05, 0.025, 0.01));
+
+TEST_P(fill_area_with_holes_fixture, compare_opencv) {
+  // Compute the fill cells using cover library
+  const discrete_polygon area_cells = to_area(resolution, poly_vec);
+
+  // Convert the outlines to OpenCV compatible type
+  using cv_points_vec = std::vector<cv::Point>;
+  std::vector<cv_points_vec> cv_outlines(poly_vec.size());
+  for (size_t idp = 0, size = poly_vec.size(); idp != size; ++idp) {
+    const auto outline = to_outline(resolution, poly_vec[idp]);
+
+    // Copy over the cells to OpenCV compatible type
+    cv_outlines[idp].reserve(outline.size());
+    for (int idx = 0, cols = outline.cols(); idx != cols; ++idx) {
+      cv_outlines[idp].push_back({outline(0, idx), outline(1, idx)});
+    }
+  }
+
+  // Compute the OpenCV image size
+  int rows, cols;
+  compute_size(area_cells, rows, cols);
+  cv::Mat img(rows, cols, CV_8U, cv::Scalar(0));
+
+  cv::fillPoly(img, cv_outlines, cv::Scalar(1));
+  cv_points_vec expected;
   cv::findNonZero(img, expected);
 
   auto get_index = [&](int _x, int _y) { return _x + _y * img.cols; };

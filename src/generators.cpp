@@ -95,74 +95,127 @@ area_generator::range::range(const int _y, const int _min,
   std::tie(min_, max_) = std::minmax(_min, _max);
 }
 
-area_generator::area_generator(const discrete_polygon& _outline) : size_(0) {
+area_generator::area_generator(const discrete_polygon& _outline) :
+    area_generator{&_outline, 1} {}
+
+area_generator::area_generator(const double _resolution,
+                               const polygon& _polygon) :
+    area_generator{to_outline(_resolution, _polygon)} {}
+
+area_generator::area_generator(const discrete_polygon_vec& _outlines) :
+    area_generator{_outlines.data(), _outlines.size()} {}
+
+static discrete_polygon_vec
+polygons_to_outlines(const double _resolution, const polygon_vec& _polygons) {
+  discrete_polygon_vec outlines;
+  outlines.reserve(_polygons.size());
+
+  for (const auto& polygon : _polygons) {
+    outlines.emplace_back(to_outline(_resolution, polygon));
+  }
+  return outlines;
+}
+
+area_generator::area_generator(const double _resolution,
+                               const polygon_vec& _polygons) :
+    area_generator(polygons_to_outlines(_resolution, _polygons)) {}
+
+area_generator::area_generator(const discrete_polygon* _outlines,
+                               const size_t _n_outlines) :
+    size_(0) {
   // We do a sort-free line-fill-algorithm for area checking. We don't sort
   // by y-values, but just throw them into a hash-map. Algorithm has 2 steps:
   // 1 - Generate the scan_line; (y-lines) of coordinate pairs
   // 2 - Check pairwise the values
 
+  // For convenience
+  const auto outline_begin = _outlines;
+  const auto outline_end = outline_begin + _n_outlines;
+
   // Better safe than sorry
-  if (_outline.cols() == 0)
+  const int n_cols =
+      std::accumulate(outline_begin, outline_end, 0,
+                      [](const int _cols, const discrete_polygon& _outline) {
+                        return _cols + _outline.cols();
+                      });
+  if (n_cols == 0)
     return;
 
-  // Get the y-bounds of the area.
-  const int y_begin = _outline.row(1).minCoeff();  // NOLINT
+  // Get the y-bounds of the areas.
+  int y_begin = std::numeric_limits<int>::max();
+  int y_end = std::numeric_limits<int>::min();
+  for (auto ptr = outline_begin; ptr != outline_end; ++ptr) {
+    const auto& outline = *ptr;
+
+    if (outline.cols() == 0) {
+      continue;
+    }
+    // Compute the limits
+    y_begin = std::min(y_begin, outline.row(1).minCoeff());
+    y_end = std::max(y_end, outline.row(1).maxCoeff());
+  }
+  assert(y_begin <= y_end && "Wrong bounds in y");
 
   using y_hash = std::vector<x_list>;
   y_hash y_map;
 
-  y_map.resize(_outline.row(1).maxCoeff() - y_begin + 1);
+  y_map.resize(y_end - y_begin + 1);
   for (auto& m : y_map)
     m.reserve(10);
 
-  // Get the size.
-  const auto n_pts = static_cast<size_t>(_outline.cols());
+  // Now go over each outline and apply the line fill algorithm
+  for (auto ptr = outline_begin; ptr != outline_end; ++ptr) {
+    const auto& outline = *ptr;
 
-  // Below step 1: Generate the scan_line structure
+    // Get the size.
+    const auto n_pts = static_cast<size_t>(outline.cols());
 
-  // Find the end point where y changes
-  size_t end = n_pts - 1;
-  while (end != 0 && _outline(1, end) == _outline(1, 0)) {
-    --end;
-  }
+    // Below step 1: Generate the scan_line structure
 
-  // If end is 0, it means that all points are at the same height. In such a
-  // case, we simply return the min and max at the given y coordinate
-  if (end == 0) {
-    const int min_x = _outline.row(0).minCoeff();
-    const int max_x = _outline.row(0).maxCoeff();
-    const int curr_y = _outline(1, 0) - y_begin;
-
-    y_map.at(curr_y).emplace_back(_outline(1, 0), min_x, min_x);
-    y_map.at(curr_y).emplace_back(_outline(1, 0), max_x, max_x);
-  }
-
-  // Helper to wrap points around in case index reaches the size
-  const auto wrap_around = [n_pts](const size_t _idx) {
-    return _idx == n_pts ? 0 : _idx;
-  };
-
-  for (size_t curr = 0, last = end; curr <= end; ++curr) {
-    const auto next = wrap_around(curr + 1);
-    const auto curr_y = _outline(1, curr) - y_begin;
-
-    // Skip curr if y does not change between curr and next
-    if (curr_y == _outline(1, next) - y_begin) {
-      continue;
+    // Find the end point where y changes
+    size_t end = n_pts - 1;
+    while (end != 0 && outline(1, end) == outline(1, 0)) {
+      --end;
     }
 
-    // Add current range to the scan line
-    const auto start = wrap_around(last + 1);
-    y_map.at(curr_y).emplace_back(_outline(1, curr), _outline(0, start),
-                                  _outline(0, curr));
+    // If end is 0, it means that all points are at the same height. In such a
+    // case, we simply return the min and max at the given y coordinate
+    if (end == 0) {
+      const int min_x = outline.row(0).minCoeff();
+      const int max_x = outline.row(0).maxCoeff();
+      const int curr_y = outline(1, 0) - y_begin;
 
-    // If current range is a cusp, add it again
-    if (is_cusp(_outline.col(last), _outline.col(curr), _outline.col(next))) {
-      y_map.at(curr_y).emplace_back(_outline(1, curr), _outline(0, start),
-                                    _outline(0, curr));
+      y_map.at(curr_y).emplace_back(outline(1, 0), min_x, min_x);
+      y_map.at(curr_y).emplace_back(outline(1, 0), max_x, max_x);
     }
 
-    last = curr;
+    // Helper to wrap points around in case index reaches the size
+    const auto wrap_around = [n_pts](const size_t _idx) {
+      return _idx == n_pts ? 0 : _idx;
+    };
+
+    for (size_t curr = 0, last = end; curr <= end; ++curr) {
+      const auto next = wrap_around(curr + 1);
+      const auto curr_y = outline(1, curr) - y_begin;
+
+      // Skip curr if y does not change between curr and next
+      if (curr_y == outline(1, next) - y_begin) {
+        continue;
+      }
+
+      // Add current range to the scan line
+      const auto start = wrap_around(last + 1);
+      y_map.at(curr_y).emplace_back(outline(1, curr), outline(0, start),
+                                    outline(0, curr));
+
+      // If current range is a cusp, add it again
+      if (is_cusp(outline.col(last), outline.col(curr), outline.col(next))) {
+        y_map.at(curr_y).emplace_back(outline(1, curr), outline(0, start),
+                                      outline(0, curr));
+      }
+
+      last = curr;
+    }
   }
 
   // Now, sort the x-line pairs to account for non-convex shapes
@@ -199,9 +252,5 @@ area_generator::area_generator(const discrete_polygon& _outline) : size_(0) {
   for (const auto& range : x_list_)
     size_ += static_cast<size_t>(range.max() - range.min() + 1);
 }
-
-area_generator::area_generator(const double _resolution,
-                               const polygon& _polygon) :
-    area_generator(to_outline(_resolution, _polygon)) {}
 
 }  // namespace cover
