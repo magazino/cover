@@ -2,6 +2,21 @@
 Changelog for package cover
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2021-11-11)
+------------------
+* Merged in hamza/support__nested_outlines (pull request #19)
+  Support nested outlines
+  Approved-by: Dmitrij Dorezyuk
+* Merged in dima/refactor (pull request #17)
+  Dima/refactor
+* Merged in hamza/outline_generator (pull request #16)
+  Renamed functions. Added outline generator
+  Approved-by: Dmitrij Dorezyuk
+* Merged in dima/dev (pull request #13)
+  Dima/dev
+  Approved-by: Rainer Kmmerle
+  Approved-by: Muhammad Sattar
+
 0.4.0 (2021-09-16)
 ------------------
 * Merged in SW-49813_stl_area_iterator (pull request #12)
