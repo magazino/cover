@@ -2,6 +2,12 @@
 Changelog for package cover
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.1 (2021-11-12)
+------------------
+* Merged in dima/dev (pull request #20)
+  Dima/dev
+  Approved-by: Rainer Kmmerle
+
 0.5.0 (2021-11-11)
 ------------------
 * Merged in hamza/support__nested_outlines (pull request #19)
