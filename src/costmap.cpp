@@ -52,4 +52,20 @@ is_free(const discrete_polygon& _dp, const cell& _offset,
   return is_free_impl(_dp, check);
 }
 
+bool
+is_free(const polygon& _polygon, const costmap_2d::Costmap2D& _map) {
+  const point origin(_map.getOriginX(), _map.getOriginY());
+  const area_generator gen(_map.getResolution(), _polygon.colwise() - origin);
+  return is_free(gen, _map);
+}
+
+bool
+is_free(const polygon& _polygon, const Eigen::Isometry2d& _pose,
+        const costmap_2d::Costmap2D& _map) {
+  const point origin(_map.getOriginX(), _map.getOriginY());
+  const area_generator gen(_map.getResolution(),
+                           (_pose * _polygon).colwise() - origin);
+  return is_free(gen, _map);
+}
+
 }  // namespace cover

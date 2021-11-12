@@ -8,6 +8,8 @@
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/Point.h>
 
+#include <Eigen/Geometry>
+
 #include <cassert>
 #include <type_traits>
 #include <vector>
@@ -218,6 +220,26 @@ is_free(const discrete_polygon& _dp, const costmap_2d::Costmap2D& _map);
  */
 bool
 is_free(const discrete_polygon& _dp, const cell& _offset,
+        const costmap_2d::Costmap2D& _map);
+
+/**
+ * @copybrief is_free(const Generator&, const costmap_2d::Costmap2D&)
+ *
+ * @param _polygon The polygon in the world-frame of the map.
+ * @param _map The costmap.
+ */
+bool
+is_free(const polygon& _polygon, const costmap_2d::Costmap2D& _map);
+
+/**
+ * @copybrief is_free(const Generator&, const costmap_2d::Costmap2D&)
+ *
+ * @param _polygon The polygon.
+ * @param _pose The pose of the polygon in the world-frame of the map.
+ * @param _map The costmap.
+ */
+bool
+is_free(const polygon& _polygon, const Eigen::Isometry2d& _pose,
         const costmap_2d::Costmap2D& _map);
 
 /// @brief Returns the sum of the costs of all cells within the _gen.

@@ -12,6 +12,8 @@
 
 namespace cover {
 
+// The coordinates of polygons, where all x coordinates are followed by the y
+// coordinates.
 static std::vector<std::vector<double>> footprints = {
     // S-shape
     {-2.5, -1, 1, 2.5, 1, -1, 1, -0.5, 1.5, -1, 0.5, -1.5},
@@ -40,7 +42,10 @@ static std::vector<std::vector<double>> footprints = {
      0.84,  0.84,  0.00,  0.00,  0.03,  0.04,  0.13,  0.21,  0.26,  0.29,
      0.32,  0.34,  0.34,  0.32,  0.27,  0.19,  0.10,  0.03,  0.00,  -0.03,
      -0.10, -0.19, -0.27, -0.32, -0.34, -0.34, -0.32, -0.29, -0.26, -0.21,
-     -0.13, -0.04, -0.03, -0.00}};
+     -0.13, -0.04, -0.03, -0.00},
+    // L-shape
+    {0.51, -0.51, -0.41, -0.31, -0.31, 0.51, 0.11, -0.11, -0.81, -0.76, -0.26,
+     -0.11}};
 
 /**
  * @brief Given a linearized vector of doubles which contains all x-coordinates
