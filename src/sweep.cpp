@@ -7,6 +7,7 @@
 #include <boost/geometry/geometry.hpp>
 
 #include <cassert>
+#include <cmath>
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
@@ -14,51 +15,58 @@
 
 namespace cover {
 
-namespace interpolation {
+namespace interpol {
 
-StartStrategy::StartStrategy(
-    const Eigen::Isometry2d& _start,
-    [[maybe_unused]] const Eigen::Isometry2d& _end) noexcept :
+start_strategy::start_strategy(const Eigen::Isometry2d& _start,
+                               const Eigen::Isometry2d&) noexcept :
     start_(_start) {}
 
 const Eigen::Isometry2d&
-StartStrategy::operator()([[maybe_unused]] const double _t) const noexcept {
-  assert(_t >= 0 && _t <= 1 && "Invalid interpolation parameter");
+start_strategy::operator()(const double) const noexcept {
   return start_;
 }
 
-LinearStrategy::LinearStrategy(const Eigen::Isometry2d& _start,
-                               const Eigen::Isometry2d& _end) noexcept :
+linear_strategy::linear_strategy(const Eigen::Isometry2d& _start,
+                                 const Eigen::Isometry2d& _end) noexcept :
     t_start_(_start.translation()),
     t_diff_(_end.translation() - t_start_),
     r_start_(_start.rotation()),
     r_end_(_end.rotation()) {}
 
 Eigen::Isometry2d
-LinearStrategy::operator()(const double _t) const {
+linear_strategy::operator()(const double _t) const {
   assert(_t >= 0 && _t <= 1 && "Invalid interpolation parameter");
   return Eigen::Isometry2d{Eigen::Translation2d(t_start_ + _t * t_diff_) *
                            r_start_.slerp(_t, r_end_)};
 }
 
-}  // namespace interpolation
+}  // namespace interpol
 
 namespace stepping {
 
 size_t
-SingleStepStrategy::get_steps(
-    [[maybe_unused]] const Eigen::Isometry2d& _start,
-    [[maybe_unused]] const Eigen::Isometry2d& _end) const {
+one_step_strategy::get_steps(const Eigen::Isometry2d&,
+                             const Eigen::Isometry2d&) const noexcept {
   return 1;
 }
 
-TransRotStrategy::TransRotStrategy(const double _max_trans_step,
-                                   const double _max_angular_step) noexcept :
+max_step_strategy::max_step_strategy(const double _max_trans_step,
+                                     const double _max_angular_step) noexcept :
     t_step_(_max_trans_step), a_step_(_max_angular_step) {}
 
+static double
+compute_shortest_angle(const Eigen::Rotation2Dd& _r0,
+                       const Eigen::Rotation2Dd& _r1) {
+  // Compute the angle difference
+  const auto diff =
+      std::abs(_r0.smallestPositiveAngle() - _r1.smallestPositiveAngle());
+
+  return diff < M_PI ? diff : 2 * M_PI - diff;
+}
+
 size_t
-TransRotStrategy::get_steps(const Eigen::Isometry2d& _start,
-                            const Eigen::Isometry2d& _end) const {
+max_step_strategy::get_steps(const Eigen::Isometry2d& _start,
+                             const Eigen::Isometry2d& _end) const noexcept {
   // Check bounds
   size_t n_t_steps = 1, n_a_steps = 1;
   if (t_step_ > 0) {
@@ -72,16 +80,6 @@ TransRotStrategy::get_steps(const Eigen::Isometry2d& _start,
                   a_step_));
   }
   return std::max(n_t_steps, n_a_steps);
-}
-
-double
-TransRotStrategy::compute_shortest_angle(const Eigen::Rotation2Dd& _r0,
-                                         const Eigen::Rotation2Dd& _r1) {
-  // Compute the angle difference
-  const auto diff =
-      std::abs(_r0.smallestPositiveAngle() - _r1.smallestPositiveAngle());
-
-  return diff < M_PI ? diff : 2 * M_PI - diff;
 }
 
 }  // namespace stepping

@@ -107,6 +107,7 @@ static const std::vector<Eigen::Isometry2d> transforms = {
     Eigen::Isometry2d{Eigen::Rotation2Dd(1.4)},
     Eigen::Isometry2d{Eigen::Translation2d(0.5, 1.1)}};
 
+// Custom results visually verified in a wkt-viewer.
 static const std::vector<std::string> wkt_expected = {
     // rotated.
     // 0
@@ -375,7 +376,7 @@ INSTANTIATE_TEST_CASE_P(/**/, sweep_fixture,
                         testing::Combine(testing::Range(0, 2),
                                          testing::Range(0, 7)));
 
-TEST_P(sweep_fixture, rotate) {
+TEST_P(sweep_fixture, regression) {
   // Parsing fails for number 5
   const auto p = GetParam();
   const auto i0 = std::get<0>(p);
@@ -415,46 +416,35 @@ TEST_P(sweep_fixture, rotate) {
   ASSERT_LE(area, 1e-4);
 }
 
-/// @brief Fixture for linear interpolation
-struct linear_interpolation_fixture : public testing::TestWithParam<double> {
-  linear_interpolation_fixture() :
-      t0{5, 3},
-      t1{3, 5},
-      r0{M_PI_4},
-      r1{-M_PI_4},
-      lin_itp{Eigen::Isometry2d{t0 * r0}, Eigen::Isometry2d{t1 * r1}} {}
-
-  // Start and end transforms
-  const Eigen::Translation2d t0;
-  const Eigen::Translation2d t1;
-  const Eigen::Rotation2Dd r0;
-  const Eigen::Rotation2Dd r1;
-
-  // Linear interpolant
-  const cover::interpolation::LinearStrategy lin_itp;
-};
-
-INSTANTIATE_TEST_CASE_P(/**/, linear_interpolation_fixture,
-                        testing::Range(0.0, 1.0, 0.1));
-
 /**
  * @brief Given 2 isometries, the translation and rotation should change
  * linearly
  */
-TEST_P(linear_interpolation_fixture, simple) {
-  // Get the parametric coordinate
-  const auto t = GetParam();
+TEST(linear_interpolation, simple) {
+  // Define the transformations.
+  const Eigen::Translation2d t0{5, 3};
+  const Eigen::Translation2d t1{3, 5};
+  const Eigen::Rotation2Dd r0{M_PI_4};
+  const Eigen::Rotation2Dd r1{-M_PI_4};
 
-  // Evaluate the interpolation function
-  const Eigen::Isometry2d result = lin_itp(t);
-  const Eigen::Translation2d res_translation =
-      Eigen::Translation2d{result.translation()};
-  const Eigen::Rotation2Dd res_rotation = Eigen::Rotation2Dd{result.rotation()};
+  // Setup the strategy
+  const cover::interpol::linear_strategy lin_itp{Eigen::Isometry2d{t0 * r0},
+                                                 Eigen::Isometry2d{t1 * r1}};
 
-  // Check if the extracted values are as expected
-  ASSERT_TRUE(res_translation.isApprox(Eigen::Translation2d(
-      ((1 - t) * t0.translation() + t * t1.translation()))));
-  ASSERT_TRUE(res_rotation.isApprox(r0.slerp(t, r1)));
+  const size_t n_steps = 100;
+  const double t_step = 1. / n_steps;
+  for (size_t ii = 0; ii != n_steps; ++ii) {
+    const double t = t_step * ii;
+    // Evaluate the interpolation function
+    const Eigen::Isometry2d result = lin_itp(t);
+    const Eigen::Translation2d trans{result.translation()};
+    const Eigen::Rotation2Dd rot{result.rotation()};
+
+    // Check if the extracted values are as expected
+    ASSERT_TRUE(trans.isApprox(Eigen::Translation2d(
+        ((1 - t) * t0.translation() + t * t1.translation()))));
+    ASSERT_TRUE(rot.isApprox(r0.slerp(t, r1)));
+  }
 }
 
 /**
@@ -462,7 +452,7 @@ TEST_P(linear_interpolation_fixture, simple) {
  * should result in non-zero step size
  */
 TEST(translation_rotation_strategy, invalid) {
-  const cover::stepping::TransRotStrategy strategy(0, 0);
+  const cover::stepping::max_step_strategy strategy(0, 0);
 
   const Eigen::Isometry2d i0 = Eigen::Isometry2d{};
   const Eigen::Isometry2d i1 = Eigen::Isometry2d{};
@@ -470,63 +460,117 @@ TEST(translation_rotation_strategy, invalid) {
   ASSERT_EQ(strategy.get_steps(i0, i1), 1);
 }
 
-// t_step, a_step, t0, t1, r0, r1, check norm against trans or rot
-using trf_param_t = std::tuple<double, double, Eigen::Vector2d, Eigen::Vector2d,
-                               double, double, bool>;
+// The t_step, the a_step and the expected steps.
+using max_step_strategy_param = std::tuple<double, double, size_t>;
 
-struct translation_rotation_stepping_fixture
-    : public testing::TestWithParam<trf_param_t> {
-  translation_rotation_stepping_fixture() :
-      strategy{std::get<0>(GetParam()), std::get<1>(GetParam())},
-      i0{Eigen::Translation2d{std::get<2>(GetParam())} *
-         Eigen::Rotation2Dd{std::get<4>(GetParam())}},
-      i1{Eigen::Translation2d{std::get<3>(GetParam())} *
-         Eigen::Rotation2Dd{std::get<5>(GetParam())}},
-      check_trans(std::get<6>(GetParam())) {}
-
-  double
-  get_norm() const {
-    if (check_trans) {
-      return (std::get<2>(GetParam()) - std::get<3>(GetParam())).norm();
-    }
-    return [&]() {
-      const auto angle =
-          std::abs(std::get<4>(GetParam()) - std::get<5>(GetParam()));
-      return angle < M_PI ? angle : 2 * M_PI - angle;
-    }();
-  }
-
-  double
-  get_step_size() const {
-    if (check_trans) {
-      return std::get<0>(GetParam());
-    }
-    return std::get<1>(GetParam());
-  }
-
-  const cover::stepping::TransRotStrategy strategy;
-  const Eigen::Isometry2d i0;
-  const Eigen::Isometry2d i1;
-  bool check_trans;
-};
+struct max_step_strategy_fixture
+    : public testing::TestWithParam<max_step_strategy_param> {};
 
 INSTANTIATE_TEST_CASE_P(
-    /**/, translation_rotation_stepping_fixture,
-    testing::Values<trf_param_t>(
-        trf_param_t{0.5, 0, {2, 3}, {7, 11}, 0, 0, true},
-        trf_param_t{0, 0.5, {0, 0}, {0, 0}, -3 * M_PI_4, M_PI_2, false},
-        trf_param_t{0.1, 1.0, {0, 0}, {1, 1}, 0, M_PI_4, true},
-        trf_param_t{1.0, 0.1, {0, 0}, {1, 1}, 0, M_PI_4, false}));
+    /**/, max_step_strategy_fixture,
+    testing::Values(max_step_strategy_param{0, 0, 1},    // both set to zero
+                    max_step_strategy_param{1, 0, 8},    // just translation
+                    max_step_strategy_param{1e3, 0, 1},  // too big translation
+                    max_step_strategy_param{0, 0.5, 5},  // just rotation
+                    max_step_strategy_param{0, 1e3, 1},  // too big rotation.
+                    max_step_strategy_param{0.5, 0.5, 15},  // trans dominates.
+                    max_step_strategy_param{5, 0.1, 24}     // rot dominates
+                    ));
 
-TEST_P(translation_rotation_stepping_fixture, simple) {
-  const auto n_steps = strategy.get_steps(i0, i1);
+TEST_P(max_step_strategy_fixture, regression) {
+  // Define the transformations.
+  const Eigen::Translation2d t0{5, 3};
+  const Eigen::Translation2d t1{3, 10};
+  const Eigen::Rotation2Dd r0{M_PI_4};
+  const Eigen::Rotation2Dd r1{-M_PI};
 
-  // The computed bounds should be tight. n_steps should lie right on the  edge
-  // i.e decreasing the step size just by one should make the computed step
-  // bigger than the t_step / a_step depending upon which one is dominant
-  const auto norm = get_norm();
-  const auto step_size = get_step_size();
+  // Setup the strategy
+  const double t_step = std::get<0>(GetParam());
+  const double a_step = std::get<1>(GetParam());
+  const size_t expected = std::get<2>(GetParam());
 
-  ASSERT_LE(norm / n_steps, step_size);
-  ASSERT_GT(norm / (n_steps - 1), step_size);
+  const cover::stepping::max_step_strategy st{t_step, a_step};
+  // Check the result.
+  ASSERT_EQ(expected, st.get_steps(Eigen::Isometry2d{t0 * r0},
+                                   Eigen::Isometry2d{t1 * r1}));
+  // Flip the poses.
+  ASSERT_EQ(expected, st.get_steps(Eigen::Isometry2d{t1 * r1},
+                                   Eigen::Isometry2d{t0 * r0}));
 }
+
+TEST(sweep, regression) {
+  // Make a footprint.
+  const polygon footprint = make_footprint(footprints.at(0));
+
+  // Define some poses
+  std::vector<Eigen::Isometry2d> poses;
+  poses.emplace_back(Eigen::Isometry2d::Identity());
+  poses.emplace_back(Eigen::Translation2d{5, 0});
+  poses.emplace_back(Eigen::Rotation2Dd(-1.4) * poses.back());
+  poses.emplace_back(Eigen::Translation2d{10, 0} * poses.back());
+
+  const polygon_vec result = sweep(footprint, poses);
+
+  // Check the result.
+  ASSERT_EQ(result.size(), 1);
+  const std::string expected{
+      "POLYGON((5.99938 1.501,5.99991 1.50209,6.00022 1.50157,6.00291 "
+      "1.50407,6.00154 1.501,6.00241 1.501,6.00126 1.49985,6.75098 "
+      "0.250317,7.50079 -0.99938,7.50145 -1.00003,7.50241 -1.001,7.50039 "
+      "-1.001,2.59273 -5.46636,2.49836 -5.65924,2.49804 -5.65901,0.289957 "
+      "-7.5616,0.289944 -7.5616,0.285993 -7.56459,0.286588 -7.56356,0.28556 "
+      "-7.56415,0.288421 -7.56038,0.288487 -7.56026,1.51113 -5.82795,-0.798428 "
+      "-4.19789,-0.8024 -4.19962,-0.799823 -4.1969,-0.800176 "
+      "-4.19665,-0.798884 -4.19593,1.40951 -2.29308,1.67155 -1.501,-1.00057 "
+      "-1.501,-1.00241 -1.501,-1.00126 -1.49985,-2.50079 0.999378,-2.50241 "
+      "1.001,0.499587 1.001,0.998741 1.50016,0.998234 1.501,5.99938 1.501))"};
+
+  const bg_polygon res = detail::to_boost<bg_point>(result.front());
+  bg_polygon exp;
+  std::vector<bg_polygon> diffs;
+  bg::read_wkt<bg_polygon>(expected, exp);
+  bg::difference(res, exp, diffs);
+
+  double area = 0;
+  for (const auto& diff : diffs)
+    area += std::abs(bg::area(diff));
+
+  // The error should be small.
+  ASSERT_LE(area, 1e-4);
+}
+
+/// [custom_factory]
+struct constant_pose {
+  explicit constant_pose(const Eigen::Isometry2d& _pose) : pose_(_pose) {}
+
+  const Eigen::Isometry2d&
+  operator()(const double) const noexcept {
+    return pose_;
+  }
+
+private:
+  Eigen::Isometry2d pose_;
+};
+
+template <>
+struct interpol::strategy_factory<constant_pose> {
+  constant_pose
+  make(const Eigen::Isometry2d& _start, const Eigen::Isometry2d&) const {
+    return constant_pose{_start};
+  }
+};
+
+TEST(sweep, custom_factory) {
+  const polygon footprint = make_footprint(footprints.at(0));
+  std::vector<Eigen::Isometry2d> poses;
+  poses.emplace_back(Eigen::Isometry2d::Identity());
+  poses.emplace_back(Eigen::Translation2d{5, 0});
+  const auto r0 =
+      sweep(footprint, poses, interpol::strategy_factory<constant_pose>{},
+            stepping::one_step_strategy{});
+
+  const auto r1 = sweep(footprint, poses);
+  ASSERT_EQ(r0, r1);
+}
+
+/// [custom_factory]

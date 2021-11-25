@@ -32,6 +32,7 @@ catkin_package(
 add_library(${PROJECT_NAME}
   src/base.cpp
   src/generators.cpp
+  src/sweep.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
@@ -43,7 +44,6 @@ target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
 add_library(${PROJECT_NAME}_ros
   src/costmap.cpp
   src/footprints.cpp
-  src/sweep.cpp
 )
 target_include_directories(${PROJECT_NAME}_ros PUBLIC src)
 target_include_directories(${PROJECT_NAME}_ros SYSTEM PUBLIC ${catkin_INCLUDE_DIRS})

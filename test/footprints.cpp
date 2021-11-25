@@ -389,5 +389,3 @@ TEST_P(continuous_footprint_fixture, discrete_footprints) {
   }
   ASSERT_LE(failures, 2);
 }
-
-
