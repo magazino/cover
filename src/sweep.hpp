@@ -21,45 +21,77 @@ namespace cover {
 // Below are some interpolation strategies. They all receive two poses in the
 // ctor and provide a operator to retreive the pose. The parameter t must be in
 // the interval [0, 1].
+namespace interpolation {
 
 /// @brief Interpolation strategy returning just the start-pose.
 struct StartStrategy {
-  StartStrategy(const Eigen::Isometry2d& _start,
-                [[maybe_unused]] const Eigen::Isometry2d& _end) noexcept :
-      start_(_start) {}
-
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+  StartStrategy(const Eigen::Isometry2d& _start,
+                const Eigen::Isometry2d& _end) noexcept;
+
   const Eigen::Isometry2d&
-  operator()([[maybe_unused]] const double _t) const noexcept {
-    assert(_t >= 0 && _t <= 1 && "Invalid interpolation parameter");
-    return start_;
-  }
+  operator()(const double _t) const noexcept;
 
 private:
   Eigen::Isometry2d start_;  ///< The start pose.
-};
 
-/// @brief Spline-based interpolation strategy.
-struct SplineStrategy {
-  SplineStrategy(const Eigen::Isometry2d& _start,
-                 const Eigen::Isometry2d& _end) noexcept :
-      start_(_start), end_(_end) {}
+};  // namespace interpolation
 
+/// @brief Interpolation strategy that linearly interpolates translation and
+/// rotation
+struct LinearStrategy {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  const Eigen::Isometry2d&
-  operator()(const double _t) {
-    if (_t < 0 || _t > 1)
-      throw std::runtime_error("T out of bounds");
+  LinearStrategy(const Eigen::Isometry2d& _start,
+                 const Eigen::Isometry2d& _end) noexcept;
 
-    // todo  implement me
-    return curr_;
-  }
+  Eigen::Isometry2d
+  operator()(const double _t) const;
 
 private:
-  Eigen::Isometry2d start_, end_, curr_;  ///< Start and end poses.
+  // Translation
+  const Eigen::Vector2d t_start_;
+  const Eigen::Vector2d t_diff_;
+
+  // Rotation
+  const Eigen::Rotation2Dd r_start_;
+  const Eigen::Rotation2Dd r_end_;
 };
+
+}  // namespace interpolation
+
+// Below are some stepping strategies
+namespace stepping {
+
+/// @brief Do not step in between intermediate poses
+struct SingleStepStrategy {
+  size_t
+  get_steps(const Eigen::Isometry2d& _start,
+            const Eigen::Isometry2d& _end) const;
+};
+
+/// @brief Translational and rotational constrained strategy. The translational
+/// step is in world coordinates for e.g meters while the angular step is in
+/// radians
+struct TransRotStrategy {
+  TransRotStrategy(const double _max_trans_step,
+                   const double _max_angular_step) noexcept;
+
+  size_t
+  get_steps(const Eigen::Isometry2d& _start,
+            const Eigen::Isometry2d& _end) const;
+
+private:
+  static double
+  compute_shortest_angle(const Eigen::Rotation2Dd& _r0,
+                         const Eigen::Rotation2Dd& _r1);
+
+  const double t_step_;  ///> Translational step
+  const double a_step_;  ///> Angular step
+};
+
+}  // namespace stepping
 
 // Define the major boost::geometry types.
 using bg_point = boost::geometry::model::d2::point_xy<double>;
@@ -92,24 +124,6 @@ linear_sweep(const bg_polygon& _curr, const bg_polygon& _next);
 polygon_vec
 from_boost_with_holes(const bg_polygon& _polygon);
 
-// Below some helper structs to define the number of poses for a interpolation
-// strategy.
-
-template <typename InterpolStrategy>
-struct step_traits {
-  static constexpr size_t max = std::numeric_limits<size_t>::max();
-};
-
-template <typename InterpolStrategy>
-constexpr size_t step_traits<InterpolStrategy>::max;
-
-template <>
-struct step_traits<StartStrategy> {
-  static constexpr size_t max = 1;
-};
-
-constexpr size_t step_traits<StartStrategy>::max;
-
 }  // namespace detail
 
 /**
@@ -118,32 +132,34 @@ constexpr size_t step_traits<StartStrategy>::max;
  * @tparam InterpolStrategy The interpolation strategy type.
  * @param _polygon The polygon.
  * @param _poses The poses.
- * @param n_steps Number of steps between each pose (should be >= 1).
+ * @param _stepping_strategy Strategy for computing the steps between 2 poses.
  *
  * The interpolation strategy will be applied between the poses. For
- * StartStrategy use n_steps == 1, since it will always return just the
+ * StartStrategy use SingleStepStrategy, since it will always return just the
  * start-pose.
  */
-template <typename InterpolStrategy>
+template <typename InterpolStrategy, typename SteppingStrategy>
 polygon_vec
 sweep(const polygon& _polygon, const std::vector<Eigen::Isometry2d>& _poses,
-      size_t n_steps) {
+      const SteppingStrategy& _stepping_strategy) {
   // Simple case.
-  if (_polygon.cols() < 3 || _poses.empty() || n_steps == 0) {
+  if (_polygon.cols() < 3 || _poses.empty()) {
     return {};
   }
-  // Do not use intermediate poses for simple strategies.
-  n_steps = std::min(n_steps, detail::step_traits<InterpolStrategy>::max);
 
   // Seed the body.
   bg_polygon curr = detail::to_boost<bg_point>(_poses.front() * _polygon);
   bg_polygon output = curr;
 
   const auto p_end = _poses.end();
-  const double t_step = 1. / n_steps;
 
   for (auto p_begin = std::next(_poses.begin()); p_begin != p_end; ++p_begin) {
-    const InterpolStrategy is{*std::prev(p_begin), *p_end};
+    // Strategies setup
+    const InterpolStrategy is{*std::prev(p_begin), *p_begin};
+    const size_t n_steps = std::max(
+        1ul, _stepping_strategy.get_steps(*std::prev(p_begin), *p_begin));
+    const double t_step = 1. / n_steps;
+
     double t = t_step;
     for (size_t p = 0; p != n_steps; ++p, t += t_step) {
       const bg_polygon next = detail::to_boost<bg_point>(is(t) * _polygon);
@@ -163,7 +179,8 @@ sweep(const polygon& _polygon, const std::vector<Eigen::Isometry2d>& _poses,
 
 polygon_vec
 sweep(const polygon& _polygon, const std::vector<Eigen::Isometry2d>& _poses) {
-  return sweep<StartStrategy>(_polygon, _poses, 1);
+  return sweep<interpolation::StartStrategy>(_polygon, _poses,
+                                             stepping::SingleStepStrategy{});
 }
 
 }  // namespace cover

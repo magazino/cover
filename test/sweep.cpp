@@ -17,12 +17,6 @@
 using namespace cover;
 namespace bg = boost::geometry;
 
-TEST(steps_traits, generic) {
-  ASSERT_EQ(detail::step_traits<StartStrategy>::max, 1ul);
-  ASSERT_EQ(detail::step_traits<SplineStrategy>::max,
-            std::numeric_limits<size_t>::max());
-}
-
 TEST(append, generic) {
   const polygon pol0 = polygon::Random(2, 3);
   const bg_polygon bg0 = detail::to_boost<bg_point>(pol0);
@@ -419,4 +413,120 @@ TEST_P(sweep_fixture, rotate) {
 
   // The error should be small.
   ASSERT_LE(area, 1e-4);
+}
+
+/// @brief Fixture for linear interpolation
+struct linear_interpolation_fixture : public testing::TestWithParam<double> {
+  linear_interpolation_fixture() :
+      t0{5, 3},
+      t1{3, 5},
+      r0{M_PI_4},
+      r1{-M_PI_4},
+      lin_itp{Eigen::Isometry2d{t0 * r0}, Eigen::Isometry2d{t1 * r1}} {}
+
+  // Start and end transforms
+  const Eigen::Translation2d t0;
+  const Eigen::Translation2d t1;
+  const Eigen::Rotation2Dd r0;
+  const Eigen::Rotation2Dd r1;
+
+  // Linear interpolant
+  const cover::interpolation::LinearStrategy lin_itp;
+};
+
+INSTANTIATE_TEST_CASE_P(/**/, linear_interpolation_fixture,
+                        testing::Range(0.0, 1.0, 0.1));
+
+/**
+ * @brief Given 2 isometries, the translation and rotation should change
+ * linearly
+ */
+TEST_P(linear_interpolation_fixture, simple) {
+  // Get the parametric coordinate
+  const auto t = GetParam();
+
+  // Evaluate the interpolation function
+  const Eigen::Isometry2d result = lin_itp(t);
+  const Eigen::Translation2d res_translation =
+      Eigen::Translation2d{result.translation()};
+  const Eigen::Rotation2Dd res_rotation = Eigen::Rotation2Dd{result.rotation()};
+
+  // Check if the extracted values are as expected
+  ASSERT_TRUE(res_translation.isApprox(Eigen::Translation2d(
+      ((1 - t) * t0.translation() + t * t1.translation()))));
+  ASSERT_TRUE(res_rotation.isApprox(r0.slerp(t, r1)));
+}
+
+/**
+ * @brief Case where the step size in both translation and rotation is 0. This
+ * should result in non-zero step size
+ */
+TEST(translation_rotation_strategy, invalid) {
+  const cover::stepping::TransRotStrategy strategy(0, 0);
+
+  const Eigen::Isometry2d i0 = Eigen::Isometry2d{};
+  const Eigen::Isometry2d i1 = Eigen::Isometry2d{};
+
+  ASSERT_EQ(strategy.get_steps(i0, i1), 1);
+}
+
+// t_step, a_step, t0, t1, r0, r1, check norm against trans or rot
+using trf_param_t = std::tuple<double, double, Eigen::Vector2d, Eigen::Vector2d,
+                               double, double, bool>;
+
+struct translation_rotation_stepping_fixture
+    : public testing::TestWithParam<trf_param_t> {
+  translation_rotation_stepping_fixture() :
+      strategy{std::get<0>(GetParam()), std::get<1>(GetParam())},
+      i0{Eigen::Translation2d{std::get<2>(GetParam())} *
+         Eigen::Rotation2Dd{std::get<4>(GetParam())}},
+      i1{Eigen::Translation2d{std::get<3>(GetParam())} *
+         Eigen::Rotation2Dd{std::get<5>(GetParam())}},
+      check_trans(std::get<6>(GetParam())) {}
+
+  double
+  get_norm() const {
+    if (check_trans) {
+      return (std::get<2>(GetParam()) - std::get<3>(GetParam())).norm();
+    }
+    return [&]() {
+      const auto angle =
+          std::abs(std::get<4>(GetParam()) - std::get<5>(GetParam()));
+      return angle < M_PI ? angle : 2 * M_PI - angle;
+    }();
+  }
+
+  double
+  get_step_size() const {
+    if (check_trans) {
+      return std::get<0>(GetParam());
+    }
+    return std::get<1>(GetParam());
+  }
+
+  const cover::stepping::TransRotStrategy strategy;
+  const Eigen::Isometry2d i0;
+  const Eigen::Isometry2d i1;
+  bool check_trans;
+};
+
+INSTANTIATE_TEST_CASE_P(
+    /**/, translation_rotation_stepping_fixture,
+    testing::Values<trf_param_t>(
+        trf_param_t{0.5, 0, {2, 3}, {7, 11}, 0, 0, true},
+        trf_param_t{0, 0.5, {0, 0}, {0, 0}, -3 * M_PI_4, M_PI_2, false},
+        trf_param_t{0.1, 1.0, {0, 0}, {1, 1}, 0, M_PI_4, true},
+        trf_param_t{1.0, 0.1, {0, 0}, {1, 1}, 0, M_PI_4, false}));
+
+TEST_P(translation_rotation_stepping_fixture, simple) {
+  const auto n_steps = strategy.get_steps(i0, i1);
+
+  // The computed bounds should be tight. n_steps should lie right on the  edge
+  // i.e decreasing the step size just by one should make the computed step
+  // bigger than the t_step / a_step depending upon which one is dominant
+  const auto norm = get_norm();
+  const auto step_size = get_step_size();
+
+  ASSERT_LE(norm / n_steps, step_size);
+  ASSERT_GT(norm / (n_steps - 1), step_size);
 }
