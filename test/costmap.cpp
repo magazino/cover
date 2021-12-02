@@ -1,4 +1,4 @@
-#include "costmap.hpp"
+#include <cover/costmap.hpp>
 #include <gtest/gtest.h>
 
 TEST(make_polygon, empty) {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "base.hpp"
-#include "impl/boost_io.hpp"
+#include <cover/base.hpp>
+#include <cover/impl/boost_io.hpp>
 
 #include <Eigen/Geometry>
 
@@ -205,7 +205,7 @@ sweep(const polygon& _polygon, const std::vector<Eigen::Isometry2d>& _poses,
  * Will use the interpol::start_strategy and stepping::one_step_strategy for
  * computing the swept area.
  */
-polygon_vec
+inline polygon_vec
 sweep(const polygon& _polygon, const std::vector<Eigen::Isometry2d>& _poses) {
   return sweep(_polygon, _poses,
                interpol::strategy_factory<interpol::start_strategy>{},

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "base.hpp"
-#include "expand.hpp"
-#include "generators.hpp"
+#include <cover/base.hpp>
+#include <cover/expand.hpp>
+#include <cover/generators.hpp>
 
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_2d.h>

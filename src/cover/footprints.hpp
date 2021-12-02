@@ -1,7 +1,7 @@
 #pragma once
 
-#include "base.hpp"
-#include "generators.hpp"
+#include <cover/base.hpp>
+#include <cover/generators.hpp>
 
 #include <costmap_2d/costmap_2d.h>
 #include <geometry_msgs/Point.h>
@@ -169,9 +169,9 @@ struct generator_footprint
   /// The code below shows how a generator_footprint might be constructed:
   /// @snippet test/footprints.cpp generator_footprint_constructor
   template <typename... Args,
-            std::enable_if_t<
+            typename std::enable_if<
                 std::is_constructible<continuous_footprint, Args&&...>::value,
-                bool> = true>
+                bool>::type = true>
   generator_footprint(double _resolution, Args&&... args) {
     // Assemble the continuous_footprint and call init.
     init(_resolution, continuous_footprint{std::forward<Args>(args)...});
@@ -209,9 +209,9 @@ struct discrete_footprint : public detail::base_footprint<discrete_polygon> {
   /// The code below shows how a discrete_footprint might be constructed:
   /// @snippet test/footprints.cpp discrete_footprint_constructor
   template <typename... Args,
-            std::enable_if_t<
+            typename std::enable_if<
                 std::is_constructible<generator_footprint, Args&&...>::value,
-                bool> = true>
+                bool>::type = true>
   discrete_footprint(Args&&... args) {
     init(generator_footprint{std::forward<Args>(args)...});
   }

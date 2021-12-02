@@ -1,6 +1,6 @@
-#include "generators.hpp"
-#include "base.hpp"
-#include "expand.hpp"
+#include <cover/base.hpp>
+#include <cover/expand.hpp>
+#include <cover/generators.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -219,7 +219,7 @@ area_generator::area_generator(const discrete_polygon* _outlines,
   }
 
   // Now, sort the x-line pairs to account for non-convex shapes
-  std::for_each(y_map.begin(), y_map.end(), [](auto& ranges) {
+  std::for_each(y_map.begin(), y_map.end(), [](x_list& ranges) {
     std::sort(ranges.begin(), ranges.end(),
               [](const range& _r0, const range& _r1) {
                 return _r0.min() < _r1.min();

@@ -1,6 +1,6 @@
-#include "sweep.hpp"
+#include <cover/impl/boost_io.hpp>
+#include <cover/sweep.hpp>
 #include "cover_test_utils.hpp"
-#include "impl/boost_io.hpp"
 
 #include <gtest/gtest.h>
 

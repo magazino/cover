@@ -1,8 +1,8 @@
-#include "footprints.hpp"
-#include "costmap.hpp"
-#include "expand.hpp"
-#include "impl/boost_io.hpp"
-#include "impl/costmap.hpp"
+#include <cover/costmap.hpp>
+#include <cover/expand.hpp>
+#include <cover/footprints.hpp>
+#include <cover/impl/boost_io.hpp>
+#include <cover/impl/costmap.hpp>
 
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_2d.h>

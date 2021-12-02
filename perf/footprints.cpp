@@ -1,4 +1,4 @@
-#include <footprints.hpp>
+#include <cover/footprints.hpp>
 #include "cover_test_utils.hpp"
 
 #include <costmap_2d/costmap_2d.h>

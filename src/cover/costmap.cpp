@@ -1,4 +1,6 @@
-#include "costmap.hpp"
+#include <cover/costmap.hpp>
+
+#include <costmap_2d/cost_values.h>
 
 #include <cstddef>
 

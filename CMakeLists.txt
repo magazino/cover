@@ -8,8 +8,11 @@ option(COVER_DOXYGEN "Toggle to build the documentation with Doxygen" OFF)
 option(COVER_IWYU "Toggle the include-what-you-use checks" OFF)
 
 set(CATKIN_REQUIRED_PACKAGE costmap_2d roscpp)
+
 # library targets ros-melodic or newer.
-# set CMAKE_CXX_STANDARD to 11 if compiling otherwise.
+# Setting the CXX_STANDARD works only for cmake-versions >= 3.1.0
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-Wpedantic -Wall -Wextra)
 
 # the clang-tidy checks are optional
@@ -30,9 +33,9 @@ catkin_package(
 
 # barebone lib (without ros)
 add_library(${PROJECT_NAME}
-  src/base.cpp
-  src/generators.cpp
-  src/sweep.cpp
+  src/cover/base.cpp
+  src/cover/generators.cpp
+  src/cover/sweep.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
@@ -42,8 +45,8 @@ target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
 
 # ros-interface lib
 add_library(${PROJECT_NAME}_ros
-  src/costmap.cpp
-  src/footprints.cpp
+  src/cover/costmap.cpp
+  src/cover/footprints.cpp
 )
 target_include_directories(${PROJECT_NAME}_ros PUBLIC src)
 target_include_directories(${PROJECT_NAME}_ros SYSTEM PUBLIC ${catkin_INCLUDE_DIRS})
@@ -60,7 +63,7 @@ install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_ros
   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
 )
 
-install(DIRECTORY src/
+install(DIRECTORY src/cover/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   FILES_MATCHING PATTERN "*.hpp"
 )

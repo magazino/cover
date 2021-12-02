@@ -1,5 +1,5 @@
-#include "sweep.hpp"
-#include "impl/boost_io.hpp"
+#include <cover/impl/boost_io.hpp>
+#include <cover/sweep.hpp>
 
 #include <boost/geometry/algorithms/buffer.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>

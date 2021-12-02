@@ -1,7 +1,7 @@
 #pragma once
 
-#include "base.hpp"
-#include "generators.hpp"
+#include <cover/base.hpp>
+#include <cover/generators.hpp>
 
 #include <utility>
 

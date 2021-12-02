@@ -1,4 +1,4 @@
-#include "expand.hpp"
+#include <cover/expand.hpp>
 #include "cover_test_utils.hpp"
 
 #include <gtest/gtest.h>

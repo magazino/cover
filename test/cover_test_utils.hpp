@@ -1,7 +1,7 @@
 #pragma once
 
 // --- Internal Includes ---
-#include <cover.hpp>
+#include <cover/cover.hpp>
 
 // --- ROS Includes ---
 #include <geometry_msgs/Point.h>

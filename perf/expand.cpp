@@ -8,7 +8,7 @@
 #include <nav_grid_iterators/polygon_fill.h>
 #include <nav_grid_iterators/polygon_outline.h>
 
-#include <cover.hpp>
+#include <cover/cover.hpp>
 #include "cover_test_utils.hpp"
 
 #include <algorithm>
