@@ -32,6 +32,7 @@ catkin_package(
 add_library(${PROJECT_NAME}
   src/base.cpp
   src/generators.cpp
+  src/sweep.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
@@ -74,10 +75,12 @@ if(CATKIN_ENABLE_TESTING)
   find_package(base_local_planner REQUIRED)
 
   catkin_add_gtest(${PROJECT_NAME}_test
+    test/boost_io.cpp
     test/costmap.cpp
     test/expand.cpp
     test/footprints.cpp
     test/generators.cpp
+    test/sweep.cpp
   )
 
   target_include_directories(${PROJECT_NAME}_test PUBLIC

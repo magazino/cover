@@ -1,6 +1,7 @@
 #include "footprints.hpp"
 #include "costmap.hpp"
 #include "expand.hpp"
+#include "impl/boost_io.hpp"
 #include "impl/costmap.hpp"
 
 #include <costmap_2d/cost_values.h>
@@ -8,7 +9,6 @@
 
 #include <boost/geometry/algorithms/buffer.hpp>
 #include <boost/geometry/algorithms/centroid.hpp>
-#include <boost/geometry/algorithms/correct.hpp>
 #include <boost/geometry/algorithms/difference.hpp>
 #include <boost/geometry/algorithms/distance.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
@@ -22,6 +22,7 @@
 #include <iterator>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace cover {
@@ -32,76 +33,15 @@ namespace bg = boost::geometry;
 using bg_point = bg::model::d2::point_xy<double>;
 using bg_polygon = bg::model::polygon<bg_point>;
 using bg_multi_polygon = bg::model::multi_polygon<bg_polygon>;
+using bg_segment = bg::model::referring_segment<const bg_point>;
 
 // Short-cut for the costmap.
 using costmap_2d::Costmap2D;
 
-/**
- * @brief Converts the eigen-based polygons to boost::geometry's polygons.
- */
-static bg_polygon
-to_boost(const polygon& _polygon) {
-  bg_polygon out;
-  auto& ring = out.outer();
-
-  // Allocate space and copy over the data.
-  ring.reserve(_polygon.cols());
-  for (int cc = 0, cols = _polygon.cols(); cc != cols; ++cc) {
-    ring.emplace_back(_polygon(0, cc), _polygon(1, cc));
-  }
-
-  // Make sure that we meet the requirements of boost.
-  bg::correct(out);
-
-  return out;
-}
-
-/**
- * @brief Converts boost::geometry's polygons to eigen.
- * @throw std::runtime_error, if the input has inner rings.
- */
-static polygon
-to_eigen(const bg_polygon& _polygon) {
-  if (!_polygon.inners().empty())
-    throw std::runtime_error("Inner rings are not supported");
-
-  const auto& outer = _polygon.outer();
-  polygon out(2, outer.size());
-
-  int counter = -1;
-  for (const auto& p : outer)
-    out.col(++counter) << p.x(), p.y();
-
-  return out;
-}
-
-static polygon_vec
-to_eigen(const bg_multi_polygon& _in) {
-  auto is_valid = [](const bg_polygon& _poly) {
-    // If we have a inner polygon, it's likely degenerate.
-    return !bg::is_empty(_poly) && _poly.inners().empty();
-  };
-
-  // Count the valid polygons
-  size_t n_valid = std::count_if(_in.begin(), _in.end(), is_valid);
-
-  // Create the right polygon_vec
-  polygon_vec out;
-  out.reserve(n_valid);
-
-  for (const auto& poly : _in) {
-    if (!is_valid(poly))
-      continue;
-    out.emplace_back(to_eigen(poly));
-  }
-
-  return out;
-}
-
 double
 get_radius(const polygon& _polygon) {
   // Convert to boost
-  const bg_polygon poly = to_boost(_polygon);
+  const bg_polygon poly = detail::to_boost<bg_point>(_polygon);
 
   // We might also throw...
   if (poly.outer().empty())
@@ -110,8 +50,6 @@ get_radius(const polygon& _polygon) {
   // Get the center.
   bg_point center;
   bg::centroid(poly, center);
-
-  using bg_segment = bg::model::referring_segment<const bg_point>;
 
   // Find the closest distance to the centroid
   double dist = std::numeric_limits<double>::max();
@@ -135,7 +73,7 @@ continuous_footprint::continuous_footprint(const double _radius,
     throw std::invalid_argument("Radius must be positive");
 
   // Convert the polygon to boost
-  const bg_polygon polygon = to_boost(_polygon);
+  const bg_polygon polygon = detail::to_boost<bg_point>(_polygon);
 
   bg_multi_polygon eroded, dilated, diffs;
   // The erode-factor is slightly larger than -1 (for numerical reasons).
@@ -168,8 +106,8 @@ continuous_footprint::continuous_footprint(const double _radius,
   bg::difference(polygon, dilated, diffs);  // NOLINT
 
   // Convert back to eigen.
-  outlines = to_eigen(eroded);
-  areas = to_eigen(diffs);
+  outlines = detail::from_boost(eroded);
+  areas = detail::from_boost(diffs);
 }
 
 continuous_footprint::continuous_footprint(const polygon& _polygon) :
